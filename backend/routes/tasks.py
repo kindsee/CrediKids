@@ -1,0 +1,378 @@
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from models import db, User, Task, TaskAssignment, TaskCompletion, TaskProposal, TaskType, TaskFrequency, ProposalStatus
+from datetime import datetime, date
+from sqlalchemy import and_
+
+tasks_bp = Blueprint('tasks', __name__)
+
+def admin_required(fn):
+    """Decorator para verificar que el usuario es administrador"""
+    from functools import wraps
+    @wraps(fn)
+    @jwt_required()
+    def wrapper(*args, **kwargs):
+        user_id = int(get_jwt_identity())
+        user = User.query.get(user_id)
+        
+        if not user or user.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        return fn(*args, **kwargs)
+    return wrapper
+
+@tasks_bp.route('', methods=['GET'])
+@jwt_required()
+def get_tasks():
+    """Obtener lista de tareas"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    # Admin ve todas, usuarios solo las activas
+    if user.role == 'admin':
+        tasks = Task.query.all()
+    else:
+        tasks = Task.query.filter_by(status='active').all()
+    
+    return jsonify([task.to_dict() for task in tasks]), 200
+
+@tasks_bp.route('/<int:task_id>', methods=['GET'])
+@jwt_required()
+def get_task(task_id):
+    """Obtener información de una tarea específica"""
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    return jsonify(task.to_dict()), 200
+
+@tasks_bp.route('', methods=['POST'])
+@admin_required
+def create_task():
+    """
+    Crear nueva tarea (solo admin)
+    Body: {
+        "title": "...",
+        "description": "...",
+        "task_type": "obligatory|special|proposed",
+        "frequency": "daily|weekly|monthly|one_time",
+        "base_value": 100
+    }
+    """
+    data = request.get_json()
+    user_id = int(get_jwt_identity())
+    
+    required_fields = ['title', 'task_type', 'frequency', 'base_value']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    task = Task(
+        title=data['title'],
+        description=data.get('description', ''),
+        task_type=TaskType(data['task_type']),
+        frequency=TaskFrequency(data['frequency']),
+        base_value=data['base_value'],
+        created_by_id=user_id
+    )
+    
+    db.session.add(task)
+    db.session.commit()
+    
+    return jsonify(task.to_dict()), 201
+
+@tasks_bp.route('/<int:task_id>', methods=['PUT'])
+@admin_required
+def update_task(task_id):
+    """Actualizar tarea (solo admin)"""
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    data = request.get_json()
+    
+    if 'title' in data:
+        task.title = data['title']
+    if 'description' in data:
+        task.description = data['description']
+    if 'task_type' in data:
+        task.task_type = TaskType(data['task_type'])
+    if 'frequency' in data:
+        task.frequency = TaskFrequency(data['frequency'])
+    if 'base_value' in data:
+        task.base_value = data['base_value']
+    if 'status' in data:
+        task.status = data['status']
+    
+    db.session.commit()
+    
+    return jsonify(task.to_dict()), 200
+
+@tasks_bp.route('/<int:task_id>', methods=['DELETE'])
+@admin_required
+def delete_task(task_id):
+    """Archivar tarea (solo admin)"""
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    task.status = 'archived'
+    db.session.commit()
+    
+    return jsonify({'message': 'Task archived successfully'}), 200
+
+@tasks_bp.route('/assign', methods=['POST'])
+@admin_required
+def assign_task():
+    """
+    Asignar tarea a usuario
+    Body: {
+        "task_id": 1,
+        "user_id": 2,
+        "assigned_date": "2025-12-11"
+    }
+    """
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    required_fields = ['task_id', 'user_id', 'assigned_date']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    task = Task.query.get(data['task_id'])
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    user = User.query.get(data['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Convertir fecha
+    assigned_date = datetime.strptime(data['assigned_date'], '%Y-%m-%d').date()
+    
+    # Verificar si ya existe asignación
+    existing = TaskAssignment.query.filter_by(
+        task_id=data['task_id'],
+        user_id=data['user_id'],
+        assigned_date=assigned_date
+    ).first()
+    
+    if existing:
+        return jsonify({'error': 'Task already assigned for this date'}), 400
+    
+    assignment = TaskAssignment(
+        task_id=data['task_id'],
+        user_id=data['user_id'],
+        assigned_date=assigned_date,
+        assigned_by_id=admin_id
+    )
+    
+    db.session.add(assignment)
+    db.session.commit()
+    
+    return jsonify(assignment.to_dict()), 201
+
+@tasks_bp.route('/assignments/<int:assignment_id>/complete', methods=['POST'])
+@jwt_required()
+def complete_task(assignment_id):
+    """
+    Marcar tarea como completada
+    """
+    user_id = int(get_jwt_identity())
+    
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    # Verificar que el usuario es el asignado
+    if assignment.user_id != user_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if assignment.is_completed:
+        return jsonify({'error': 'Task already completed'}), 400
+    
+    # Crear registro de completado
+    completion = TaskCompletion(
+        assignment_id=assignment_id,
+        task_id=assignment.task_id,
+        user_id=user_id,
+        completed_at=datetime.utcnow()
+    )
+    
+    assignment.is_completed = True
+    
+    db.session.add(completion)
+    db.session.commit()
+    
+    return jsonify(completion.to_dict()), 201
+
+@tasks_bp.route('/completions/<int:completion_id>/validate', methods=['POST'])
+@admin_required
+def validate_task(completion_id):
+    """
+    Validar tarea completada
+    Body: {
+        "validation_score": 1|2|3,
+        "validation_notes": "..."
+    }
+    """
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    if 'validation_score' not in data:
+        return jsonify({'error': 'validation_score is required'}), 400
+    
+    score = data['validation_score']
+    if score not in [1, 2, 3]:
+        return jsonify({'error': 'validation_score must be 1, 2, or 3'}), 400
+    
+    completion = TaskCompletion.query.get(completion_id)
+    if not completion:
+        return jsonify({'error': 'Completion not found'}), 404
+    
+    if completion.validation_score:
+        return jsonify({'error': 'Task already validated'}), 400
+    
+    # Obtener la tarea para calcular créditos
+    task = Task.query.get(completion.task_id)
+    
+    # Calcular créditos según tipo de tarea
+    credits = 0
+    if task.task_type == TaskType.OBLIGATORY:
+        # Tareas obligatorias no suman créditos al completarse
+        credits = 0
+    else:
+        # Tareas especiales y propuestas sí suman créditos
+        credits = completion.calculate_credits(task.base_value)
+    
+    # Actualizar completion
+    completion.validation_score = score
+    completion.validated_by_id = admin_id
+    completion.validated_at = datetime.utcnow()
+    completion.validation_notes = data.get('validation_notes', '')
+    completion.credits_awarded = credits
+    
+    # Actualizar assignment
+    assignment = TaskAssignment.query.get(completion.assignment_id)
+    assignment.is_validated = True
+    
+    # Actualizar score del usuario
+    user = User.query.get(completion.user_id)
+    user.add_credits(credits)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'completion': completion.to_dict(),
+        'user_score': user.score
+    }), 200
+
+@tasks_bp.route('/proposals', methods=['GET'])
+@jwt_required()
+def get_proposals():
+    """Obtener propuestas de tareas"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role == 'admin':
+        # Admin ve todas las propuestas
+        proposals = TaskProposal.query.order_by(TaskProposal.created_at.desc()).all()
+    else:
+        # Usuario ve solo sus propuestas
+        proposals = TaskProposal.query.filter_by(user_id=user_id).order_by(TaskProposal.created_at.desc()).all()
+    
+    return jsonify([p.to_dict() for p in proposals]), 200
+
+@tasks_bp.route('/proposals', methods=['POST'])
+@jwt_required()
+def create_proposal():
+    """
+    Crear propuesta de tarea
+    Body: {
+        "title": "...",
+        "description": "...",
+        "frequency": "daily|weekly|monthly",
+        "suggested_reward": 100,
+        "message_to_admin": "..."
+    }
+    """
+    data = request.get_json()
+    user_id = int(get_jwt_identity())
+    
+    required_fields = ['title', 'description', 'frequency', 'suggested_reward']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    proposal = TaskProposal(
+        user_id=user_id,
+        title=data['title'],
+        description=data['description'],
+        frequency=data['frequency'],
+        suggested_reward=data['suggested_reward'],
+        message_to_admin=data.get('message_to_admin', '')
+    )
+    
+    db.session.add(proposal)
+    db.session.commit()
+    
+    return jsonify(proposal.to_dict()), 201
+
+@tasks_bp.route('/proposals/<int:proposal_id>/review', methods=['POST'])
+@admin_required
+def review_proposal(proposal_id):
+    """
+    Revisar propuesta de tarea
+    Body: {
+        "status": "approved|rejected|modified",
+        "admin_notes": "...",
+        "final_title": "...",  // opcional si status=modified
+        "final_description": "...",  // opcional si status=modified
+        "final_reward": 150  // opcional si status=modified
+    }
+    """
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    if 'status' not in data:
+        return jsonify({'error': 'status is required'}), 400
+    
+    proposal = TaskProposal.query.get(proposal_id)
+    if not proposal:
+        return jsonify({'error': 'Proposal not found'}), 404
+    
+    if proposal.status != ProposalStatus.PENDING:
+        return jsonify({'error': 'Proposal already reviewed'}), 400
+    
+    status = ProposalStatus(data['status'])
+    proposal.status = status
+    proposal.reviewed_by_id = admin_id
+    proposal.reviewed_at = datetime.utcnow()
+    proposal.admin_notes = data.get('admin_notes', '')
+    
+    if status == ProposalStatus.APPROVED or status == ProposalStatus.MODIFIED:
+        # Usar valores finales o los originales
+        final_title = data.get('final_title', proposal.title)
+        final_description = data.get('final_description', proposal.description)
+        final_reward = data.get('final_reward', proposal.suggested_reward)
+        
+        proposal.final_title = final_title
+        proposal.final_description = final_description
+        proposal.final_reward = final_reward
+        
+        # Crear la tarea
+        task = Task(
+            title=final_title,
+            description=final_description,
+            task_type=TaskType.PROPOSED,
+            frequency=TaskFrequency(proposal.frequency),
+            base_value=final_reward,
+            created_by_id=admin_id
+        )
+        
+        db.session.add(task)
+        db.session.flush()  # Para obtener el ID
+        
+        proposal.created_task_id = task.id
+    
+    db.session.commit()
+    
+    return jsonify(proposal.to_dict()), 200
