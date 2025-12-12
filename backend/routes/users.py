@@ -22,14 +22,15 @@ def admin_required(fn):
 @users_bp.route('', methods=['GET'])
 @jwt_required()
 def get_users():
-    """Obtener lista de usuarios (solo admin)"""
+    """Obtener lista de usuarios, incluyendo inactivos (solo admin)"""
     user_id = int(get_jwt_identity())
     current_user = User.query.get(user_id)
     
     if current_user.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
     
-    users = User.query.filter_by(is_active=True).all()
+    # Mostrar todos los usuarios, incluyendo inactivos
+    users = User.query.all()
     return jsonify([user.to_dict() for user in users]), 200
 
 @users_bp.route('/<int:user_id>', methods=['GET'])
@@ -75,6 +76,12 @@ def create_user():
     if existing_user:
         return jsonify({'error': 'Nick already exists'}), 400
     
+    # Verificar que la secuencia de iconos no existe
+    icon_codes_str = ','.join(map(str, data['icon_codes']))
+    existing_code = User.query.filter_by(access_code=icon_codes_str).first()
+    if existing_code:
+        return jsonify({'error': 'Esta secuencia de iconos ya está en uso'}), 400
+    
     # Crear usuario
     user = User(
         nick=data['nick'],
@@ -115,6 +122,13 @@ def update_user(user_id):
     if 'icon_codes' in data:
         if len(data['icon_codes']) != 4:
             return jsonify({'error': 'Icon codes must contain exactly 4 icons'}), 400
+        
+        # Verificar que la secuencia de iconos no esté en uso por otro usuario
+        icon_codes_str = ','.join(map(str, data['icon_codes']))
+        existing_code = User.query.filter_by(access_code=icon_codes_str).first()
+        if existing_code and existing_code.id != user_id:
+            return jsonify({'error': 'Esta secuencia de iconos ya está en uso'}), 400
+        
         user.set_access_code(data['icon_codes'])
     
     if 'role' in data:
@@ -130,7 +144,7 @@ def update_user(user_id):
 @users_bp.route('/<int:user_id>', methods=['DELETE'])
 @admin_required
 def delete_user(user_id):
-    """Desactivar usuario (soft delete)"""
+    """Desactivar usuario (soft delete) - Deprecated, usar toggle"""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -139,6 +153,23 @@ def delete_user(user_id):
     db.session.commit()
     
     return jsonify({'message': 'User deactivated successfully'}), 200
+
+@users_bp.route('/<int:user_id>/toggle-active', methods=['POST'])
+@admin_required
+def toggle_user_active(user_id):
+    """Activar o desactivar un usuario"""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    user.is_active = not user.is_active
+    db.session.commit()
+    
+    status = 'activado' if user.is_active else 'desactivado'
+    return jsonify({
+        'message': f'Usuario {status} exitosamente',
+        'is_active': user.is_active
+    }), 200
 
 @users_bp.route('/<int:user_id>/history', methods=['GET'])
 @jwt_required()

@@ -53,6 +53,11 @@ export const usersService = {
     return response.data
   },
   
+  toggleUserActive: async (userId) => {
+    const response = await apiClient.post(`/users/${userId}/toggle-active`)
+    return response.data
+  },
+  
   getUserHistory: async (userId) => {
     const response = await apiClient.get(`/users/${userId}/history`)
     return response.data

@@ -1,0 +1,14 @@
+# Desde tu PC Windows
+git add .
+git commit -m "Fix: Mostrar iconos en UsersPage y validar PINs duplicados"
+git push
+
+# Luego en el servidor Ubuntu
+ssh jmgalaminos@192.168.68.200
+cd ~/CrediKids/CrediKids
+git pull
+cd frontend
+rm -rf dist
+npm run build
+sudo chown -R www-data:www-data dist/
+sudo systemctl restart apache2
