@@ -1,0 +1,128 @@
+  976  cd /home/jmgalaminos/
+  977  ls
+  978  mkdir CrediKids
+  979  cd CrediKids/
+  982  sudo git clone https://github.com/kindsee/CrediKids.git
+  983  ls
+  984  cs CrediKids/
+  985  ls
+  986  cd CrediKids/
+  987  ls
+  988  cd frontend/
+  989  npm install
+  990  sudo apt update
+  996  cd /home/jmgalaminos/CrediKids/CrediKids/frontend/
+ 1012  sudo systemctl status credikids-backend
+ 1013  python3 --version
+ 1014  cd /home/jmgalaminos/CrediKids/CrediKids/backend/
+ 1015  python3 -m venv venv
+ 1016  cd ..
+ 1017  sudo chown -R $USER:$USER /home/jmgalaminos/CrediKids/
+ 1018  cd /home/jmgalaminos/CrediKids/CrediKids/backend/
+ 1019  source venv/bin/activate
+ 1020  ls -la .env
+ 1021  cp .env.example .env
+ 1022  nano .env
+ 1023  python3 -c "import secrets; print(secrets.token_hex(32))"
+ 1024  source venv/bin/activate
+ 1025  python3 -m venv venv
+ 1026  source venv/bin/activate
+ 1027  pip install -r requirements.txt
+ 1028  pip install -r requirements-prod.txt
+ 1029  mysql -u root -p
+ 1030  sudo chown -R www-data:www-data /home/jmgalaminos/CrediKids/CrediKids/frontend/dist
+ 1031  cd ..
+ 1032  cd frontend/
+ 1033  npm install
+ 1034  npm run build
+ 1035  ls -la dist/
+ 1036  sudo apt remove nodejs npm -y
+ 1037  sudo apt autoremove -y
+ 1038  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+ 1039  sudo apt install -y nodejs
+ 1040  node --version
+ 1041  npm --version
+ 1042  rm -rf node_modules package-lock.json
+ 1043  npm install
+ 1044  npm run build
+ 1045  ls -la dist/
+ 1046  sudo nano /etc/apache2/sites-enabled/nextcloud.conf
+ 1047  sudo nano /etc/apache2/ports.conf
+ 1048  sudo nano /etc/apache2/sites-available/credikids.conf
+ 1049  sudo a2ensite credikids.conf
+ 1050  sudo apache2ctl configtest
+ 1051  sudo nano /etc/systemd/system/credikids-backend.service
+ 1052  sudo systemctl daemon-reload
+ 1053  sudo systemctl enable credikids-backend
+ 1054  sudo systemctl start credikids-backend
+ 1055  sudo systemctl restart apache2
+ 1056  sudo systemctl status credikids-backend
+ 1057  sudo systemctl status apache2
+ 1058  sudo ss -tlnp | grep apache
+ 1059  sudo ufw allow from 192.168.68.0/24 to any port 8080
+ 1060  sudo ufw reload
+ 1061  sudo systemctl status credikids-backend
+ 1062  sudo systemctl restart apache2
+ 1063  sudo systemctl status apache2
+ 1064  sudo ss -tlnp | grep apache
+ 1065  sudo chmod +x /home/jmgalaminos
+ 1066  sudo chmod +x /home/jmgalaminos/CrediKids
+ 1067  sudo chmod +x /home/jmgalaminos/CrediKids/CrediKids
+ 1068  sudo chmod +x /home/jmgalaminos/CrediKids/CrediKids/frontend
+ 1069  sudo chown -R www-data:www-data /home/jmgalaminos/CrediKids/CrediKids/frontend/dist
+ 1070  sudo chmod -R 755 /home/jmgalaminos/CrediKids/CrediKids/frontend/dist
+ 1071  sudo systemctl daemon-reload
+ 1072  sudo systemctl enable credikids-backend
+ 1073  sudo systemctl start credikids-backend
+ 1074  sudo systemctl restart apache2
+ 1075  curl http://192.168.68.200:8080/api/icons
+ 1076  curl http://localhost:8080/api/icons
+ 1077  cd ..
+ 1078  git pull
+ 1079  cd frontend/
+ 1080  npm run rebuild
+ 1081  npm run build
+ 1082  sudo chown -R www-data:www-data dist/
+ 1083  sudo chmod -R 755 dist/
+ 1084  sudo systemctl restart apache2
+ 1085  cd ..
+ 1086  cd backend/
+ 1087  source venv/bin/activate
+ 1088  curl http://localhost:8080/api/icons
+ 1089  exit
+ 1090  curl http://localhost:8080/api/icons
+ 1091  sudo systemctl status credikids-backend
+ 1092  curl http://localhost:8080/api/icons
+ 1093  sudo journalctl -u credikids-backend -n 100 --no-pager
+ 1094  cd /home/jmgalaminos/CrediKids/CrediKids/backend/
+ 1095  source venv/bin/activate
+ 1096  python3 app.py
+ 1097  sudo nano /etc/systemd/system/credikids-backend.service
+ 1098  sudo systemctl daemon-reload
+ 1099  sudo systemctl restart credikids-backend
+ 1100  sudo systemctl status credikids-backend
+ 1101  curl http://localhost:8080/api/icons
+ 1102  curl http://192.168.68.200:8080/api/icons
+ 1103  sudo systemctl restart apache2
+ 1104  sudo ufw status verbose
+ 1105  sudo ss -tlnp | grep 8080
+ 1106  sudo systemctl status credikids-backend
+ 1107  sudo nano /etc/systemd/system/credikids-backend.service
+ 1108  sudo systemctl daemon-reload
+ 1109  sudo systemctl restart credikids-backend
+ 1110  sudo systemctl status credikids-backend
+ 1111  curl http://localhost:5001/api/icons
+ 1112  curl http://localhost:8080/api/icons
+ 1113  cd ..
+ 1114  cd frontend/
+ 1115  cd src/services/
+ 1116  sudo nano api.js
+ 1117  sudo nano /etc/apache2/sites-available/credikids.conf
+ 1118  cd ..
+ 1119  sudo rm -rf dist/
+ 1120  ls -la dist/
+ 1121  npm run build
+ 1122  ls -la dist/
+ 1123  sudo chown -R www-data:www-data dist/
+ 1124  sudo chmod -R 755 dist/
+ 1125  sudo systemctl restart apache2
