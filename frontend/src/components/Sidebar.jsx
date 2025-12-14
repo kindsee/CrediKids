@@ -7,7 +7,8 @@ import {
   Lightbulb, 
   Gift, 
   History, 
-  Users 
+  Users,
+  Settings
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -24,7 +25,10 @@ export default function Sidebar() {
   ]
   
   if (isAdmin) {
-    navItems.push({ to: '/users', icon: Users, label: 'Usuarios' })
+    navItems.push(
+      { to: '/users', icon: Users, label: 'Usuarios' },
+      { to: '/tasks-management', icon: Settings, label: 'Gestión Tareas' }
+    )
   }
   
   return (

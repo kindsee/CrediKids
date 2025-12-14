@@ -7,6 +7,7 @@ import TasksPage from './pages/TasksPage'
 import ProposalsPage from './pages/ProposalsPage'
 import RewardsPage from './pages/RewardsPage'
 import UsersPage from './pages/UsersPage'
+import TasksManagementPage from './pages/TasksManagementPage'
 import HistoryPage from './pages/HistoryPage'
 import ChangePinPage from './pages/ChangePinPage'
 import Layout from './components/Layout'
@@ -54,6 +55,11 @@ function App() {
           <Route path="users" element={
             <AdminRoute>
               <UsersPage />
+            </AdminRoute>
+          } />
+          <Route path="tasks-management" element={
+            <AdminRoute>
+              <TasksManagementPage />
             </AdminRoute>
           } />
         </Route>
