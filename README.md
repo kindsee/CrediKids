@@ -51,10 +51,18 @@ CrediKids/
 
 ### Flujo de Tareas
 ```
-1. Admin crea Task → 2. Admin asigna TaskAssignment a Usuario + Fecha →
+1. Admin crea Task → 2. Admin asigna TaskAssignment a Usuario + Fecha (masiva con intervalos) →
 3. Usuario completa → crea TaskCompletion →
 4. Admin valida → actualiza credits_awarded → suma/resta al User.score
 ```
+
+### Sistema de Asignación Masiva
+El administrador puede asignar tareas a múltiples usuarios con configuraciones avanzadas:
+- **Asignación diaria**: Días específicos de la semana, múltiples veces por día
+- **Asignación semanal**: Día de la semana específico, en semanas determinadas del mes
+- **Asignación mensual**: Día del mes específico, en meses seleccionados
+
+Ver [docs/TASK_ASSIGNMENT.md](docs/TASK_ASSIGNMENT.md) para documentación completa.
 
 ## 🚀 Configuración e Instalación
 
@@ -155,6 +163,8 @@ Sistema único con código de iconos:
 - **RewardsPage**: Catálogo de premios y canje
 - **HistoryPage**: Historial personal
 - **UsersPage**: Gestión de usuarios (solo admin)
+- **TasksManagementPage**: CRUD de tareas y revisión de propuestas (solo admin)
+- **TaskAssignmentPage**: Asignación masiva de tareas con intervalos (solo admin)
 
 ### Estado Global (Zustand)
 ```javascript

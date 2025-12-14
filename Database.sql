@@ -24,5 +24,8 @@ FLUSH PRIVILEGES;
 # Verificar permisos
 SELECT user, host FROM mysql.user WHERE user='credikids_user';
 
+ALTER TABLE task_completions 
+ADD COLUMN completion_notes TEXT AFTER completed_at;
+
 EXIT;
 

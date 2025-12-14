@@ -8,6 +8,7 @@ import ProposalsPage from './pages/ProposalsPage'
 import RewardsPage from './pages/RewardsPage'
 import UsersPage from './pages/UsersPage'
 import TasksManagementPage from './pages/TasksManagementPage'
+import TaskAssignmentPage from './pages/TaskAssignmentPage'
 import HistoryPage from './pages/HistoryPage'
 import ChangePinPage from './pages/ChangePinPage'
 import Layout from './components/Layout'
@@ -60,6 +61,11 @@ function App() {
           <Route path="tasks-management" element={
             <AdminRoute>
               <TasksManagementPage />
+            </AdminRoute>
+          } />
+          <Route path="task-assignment" element={
+            <AdminRoute>
+              <TaskAssignmentPage />
             </AdminRoute>
           } />
         </Route>

@@ -8,7 +8,8 @@ import {
   Gift, 
   History, 
   Users,
-  Settings
+  Settings,
+  CalendarClock
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -27,7 +28,8 @@ export default function Sidebar() {
   if (isAdmin) {
     navItems.push(
       { to: '/users', icon: Users, label: 'Usuarios' },
-      { to: '/tasks-management', icon: Settings, label: 'Gestión Tareas' }
+      { to: '/tasks-management', icon: Settings, label: 'Gestión Tareas' },
+      { to: '/task-assignment', icon: CalendarClock, label: 'Asignar Tareas' }
     )
   }
   

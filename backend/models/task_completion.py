@@ -11,6 +11,7 @@ class TaskCompletion(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completion_notes = db.Column(db.Text)  # Comentario del usuario al completar
     
     # Validación por admin
     validation_score = db.Column(db.Integer)  # 1, 2 o 3 (10%, 60%, 100%)
@@ -44,6 +45,7 @@ class TaskCompletion(db.Model):
             'task_id': self.task_id,
             'user_id': self.user_id,
             'completed_at': self.completed_at.isoformat(),
+            'completion_notes': self.completion_notes,
             'validation_score': self.validation_score,
             'validated_by_id': self.validated_by_id,
             'validated_at': self.validated_at.isoformat() if self.validated_at else None,

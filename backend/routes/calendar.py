@@ -108,7 +108,7 @@ def get_user_day(user_id, date):
 @calendar_bp.route('/user/<int:user_id>/pending', methods=['GET'])
 @jwt_required()
 def get_user_pending_tasks(user_id):
-    """Obtener tareas pendientes de un usuario (no completadas)"""
+    """Obtener tareas pendientes de un usuario (no completadas y no canceladas)"""
     current_user_id = int(get_jwt_identity())
     current_user = User.query.get(current_user_id)
     
@@ -120,12 +120,13 @@ def get_user_pending_tasks(user_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    # Tareas no completadas hasta hoy
+    # Tareas no completadas Y no canceladas hasta hoy
     today = datetime.now().date()
     pending_assignments = TaskAssignment.query.filter(
         and_(
             TaskAssignment.user_id == user_id,
             TaskAssignment.is_completed == False,
+            TaskAssignment.is_cancelled == False,
             TaskAssignment.assigned_date <= today
         )
     ).order_by(TaskAssignment.assigned_date).all()
@@ -134,6 +135,38 @@ def get_user_pending_tasks(user_id):
         'user_id': user_id,
         'pending_count': len(pending_assignments),
         'tasks': [a.to_dict() for a in pending_assignments]
+    }), 200
+
+@calendar_bp.route('/user/<int:user_id>/cancelled', methods=['GET'])
+@jwt_required()
+def get_user_cancelled_tasks(user_id):
+    """Obtener tareas no completadas/canceladas de un usuario"""
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    # Solo admin o el propio usuario
+    if current_user.role != 'admin' and current_user_id != user_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Obtener límite de resultados (default 30)
+    limit = request.args.get('limit', 30, type=int)
+    
+    # Tareas canceladas
+    cancelled_assignments = TaskAssignment.query.filter(
+        and_(
+            TaskAssignment.user_id == user_id,
+            TaskAssignment.is_cancelled == True
+        )
+    ).order_by(TaskAssignment.cancelled_at.desc()).limit(limit).all()
+    
+    return jsonify({
+        'user_id': user_id,
+        'cancelled_count': len(cancelled_assignments),
+        'tasks': [a.to_dict() for a in cancelled_assignments]
     }), 200
 
 @calendar_bp.route('/user/<int:user_id>/completed', methods=['GET'])

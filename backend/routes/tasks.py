@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, User, Task, TaskAssignment, TaskCompletion, TaskProposal, TaskType, TaskFrequency, ProposalStatus
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy import and_
+from calendar import monthrange
 
 tasks_bp = Blueprint('tasks', __name__)
 
@@ -171,13 +172,170 @@ def assign_task():
     
     return jsonify(assignment.to_dict()), 201
 
+@tasks_bp.route('/assign/bulk', methods=['POST'])
+@admin_required
+def bulk_assign_task():
+    """
+    Asignar tarea a usuario(s) con intervalo de fechas
+    Body: {
+        "task_id": 1,
+        "user_ids": [2, 3],  // Lista de usuarios
+        "start_date": "2025-12-01",
+        "end_date": "2025-12-31",
+        "frequency": "daily|weekly|monthly",  // Frecuencia de asignación
+        "weekdays": [0, 1, 2, 3, 4],  // Para daily: días de la semana (0=Lun, 6=Dom)
+        "times_per_day": 1,  // Para daily: cuántas veces al día
+        "weeks": [1, 2, 3, 4],  // Para weekly: qué semanas del mes
+        "months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]  // Para monthly: qué meses
+    }
+    """
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    required_fields = ['task_id', 'user_ids', 'start_date', 'end_date', 'frequency']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    task = Task.query.get(data['task_id'])
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    # Verificar usuarios
+    user_ids = data['user_ids']
+    users = User.query.filter(User.id.in_(user_ids)).all()
+    if len(users) != len(user_ids):
+        return jsonify({'error': 'One or more users not found'}), 404
+    
+    # Convertir fechas
+    start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
+    end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+    
+    if start_date > end_date:
+        return jsonify({'error': 'start_date must be before end_date'}), 400
+    
+    frequency = data['frequency']
+    assignments_created = []
+    
+    # Generar asignaciones según frecuencia
+    if frequency == 'daily':
+        weekdays = data.get('weekdays', [0, 1, 2, 3, 4, 5, 6])  # Por defecto todos los días
+        times_per_day = data.get('times_per_day', 1)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            # Verificar si el día de la semana está en la lista
+            if current_date.weekday() in weekdays:
+                # Asignar N veces por día a cada usuario
+                for user_id in user_ids:
+                    for _ in range(times_per_day):
+                        # Verificar si ya existe
+                        existing = TaskAssignment.query.filter_by(
+                            task_id=task.id,
+                            user_id=user_id,
+                            assigned_date=current_date
+                        ).count()
+                        
+                        # Permitir múltiples asignaciones el mismo día
+                        assignment = TaskAssignment(
+                            task_id=task.id,
+                            user_id=user_id,
+                            assigned_date=current_date,
+                            assigned_by_id=admin_id
+                        )
+                        db.session.add(assignment)
+                        assignments_created.append({
+                            'user_id': user_id,
+                            'date': current_date.isoformat()
+                        })
+            
+            current_date += timedelta(days=1)
+    
+    elif frequency == 'weekly':
+        # Para semanal, asignar en semanas específicas del mes
+        weeks = data.get('weeks', [1, 2, 3, 4])  # Por defecto todas las semanas
+        weekday = data.get('weekday', 0)  # Día de la semana (0=Lun)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            # Calcular qué semana del mes es
+            week_of_month = (current_date.day - 1) // 7 + 1
+            
+            if current_date.weekday() == weekday and week_of_month in weeks:
+                for user_id in user_ids:
+                    # Verificar si ya existe
+                    existing = TaskAssignment.query.filter_by(
+                        task_id=task.id,
+                        user_id=user_id,
+                        assigned_date=current_date
+                    ).first()
+                    
+                    if not existing:
+                        assignment = TaskAssignment(
+                            task_id=task.id,
+                            user_id=user_id,
+                            assigned_date=current_date,
+                            assigned_by_id=admin_id
+                        )
+                        db.session.add(assignment)
+                        assignments_created.append({
+                            'user_id': user_id,
+                            'date': current_date.isoformat()
+                        })
+            
+            current_date += timedelta(days=1)
+    
+    elif frequency == 'monthly':
+        # Para mensual, asignar en meses específicos
+        months = data.get('months', list(range(1, 13)))  # Por defecto todos los meses
+        day_of_month = data.get('day_of_month', 1)  # Día del mes (1-31)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.month in months and current_date.day == day_of_month:
+                for user_id in user_ids:
+                    # Verificar si ya existe
+                    existing = TaskAssignment.query.filter_by(
+                        task_id=task.id,
+                        user_id=user_id,
+                        assigned_date=current_date
+                    ).first()
+                    
+                    if not existing:
+                        assignment = TaskAssignment(
+                            task_id=task.id,
+                            user_id=user_id,
+                            assigned_date=current_date,
+                            assigned_by_id=admin_id
+                        )
+                        db.session.add(assignment)
+                        assignments_created.append({
+                            'user_id': user_id,
+                            'date': current_date.isoformat()
+                        })
+            
+            current_date += timedelta(days=1)
+    
+    else:
+        return jsonify({'error': 'Invalid frequency'}), 400
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'{len(assignments_created)} assignments created successfully',
+        'assignments': assignments_created
+    }), 201
+
 @tasks_bp.route('/assignments/<int:assignment_id>/complete', methods=['POST'])
 @jwt_required()
 def complete_task(assignment_id):
     """
     Marcar tarea como completada
+    Body (opcional): {
+        "completion_notes": "Comentario del usuario..."
+    }
     """
     user_id = int(get_jwt_identity())
+    data = request.get_json() or {}
     
     assignment = TaskAssignment.query.get(assignment_id)
     if not assignment:
@@ -195,7 +353,8 @@ def complete_task(assignment_id):
         assignment_id=assignment_id,
         task_id=assignment.task_id,
         user_id=user_id,
-        completed_at=datetime.utcnow()
+        completed_at=datetime.utcnow(),
+        completion_notes=data.get('completion_notes', '')
     )
     
     assignment.is_completed = True
@@ -204,6 +363,54 @@ def complete_task(assignment_id):
     db.session.commit()
     
     return jsonify(completion.to_dict()), 201
+
+@tasks_bp.route('/assignments/<int:assignment_id>/cancel', methods=['POST'])
+@jwt_required()
+def cancel_task(assignment_id):
+    """
+    Cancelar/no completar una tarea
+    Si es obligatoria, se resta el base_value de los créditos del usuario
+    Body (opcional): {
+        "cancellation_reason": "Motivo de cancelación..."
+    }
+    """
+    user_id = int(get_jwt_identity())
+    data = request.get_json() or {}
+    
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    # Verificar que el usuario es el asignado
+    if assignment.user_id != user_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if assignment.is_completed:
+        return jsonify({'error': 'Task already completed'}), 400
+        
+    if assignment.is_cancelled:
+        return jsonify({'error': 'Task already cancelled'}), 400
+    
+    # Marcar como cancelada
+    assignment.is_cancelled = True
+    assignment.cancelled_at = datetime.utcnow()
+    
+    # Si es obligatoria, aplicar penalización
+    user = User.query.get(user_id)
+    penalty_applied = 0
+    
+    if assignment.task.task_type == 'obligatory':
+        penalty = assignment.task.base_value
+        user.subtract_credits(penalty)
+        penalty_applied = penalty
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Task cancelled successfully',
+        'assignment': assignment.to_dict(),
+        'penalty_applied': penalty_applied
+    }), 200
 
 @tasks_bp.route('/completions/<int:completion_id>/validate', methods=['POST'])
 @admin_required

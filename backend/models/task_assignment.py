@@ -11,6 +11,8 @@ class TaskAssignment(db.Model):
     assigned_date = db.Column(db.Date, nullable=False)  # Día específico asignado
     is_completed = db.Column(db.Boolean, default=False)
     is_validated = db.Column(db.Boolean, default=False)
+    is_cancelled = db.Column(db.Boolean, default=False)  # Usuario decidió no completar
+    cancelled_at = db.Column(db.DateTime)  # Fecha de cancelación
     
     assigned_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
@@ -30,6 +32,8 @@ class TaskAssignment(db.Model):
             'assigned_date': self.assigned_date.isoformat(),
             'is_completed': self.is_completed,
             'is_validated': self.is_validated,
+            'is_cancelled': self.is_cancelled,
+            'cancelled_at': self.cancelled_at.isoformat() if self.cancelled_at else None,
             'assigned_by_id': self.assigned_by_id,
             'created_at': self.created_at.isoformat(),
             'task': self.task.to_dict() if self.task else None,

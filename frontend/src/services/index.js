@@ -95,8 +95,22 @@ export const tasksService = {
     return response.data
   },
   
-  completeTask: async (assignmentId) => {
-    const response = await apiClient.post(`/tasks/assignments/${assignmentId}/complete`)
+  bulkAssignTask: async (bulkAssignmentData) => {
+    const response = await apiClient.post('/tasks/assign/bulk', bulkAssignmentData)
+    return response.data
+  },
+  
+  completeTask: async (assignmentId, completionNotes = '') => {
+    const response = await apiClient.post(`/tasks/assignments/${assignmentId}/complete`, {
+      completion_notes: completionNotes
+    })
+    return response.data
+  },
+  
+  cancelTask: async (assignmentId, cancellationReason = '') => {
+    const response = await apiClient.post(`/tasks/assignments/${assignmentId}/cancel`, {
+      cancellation_reason: cancellationReason
+    })
     return response.data
   },
   
@@ -178,6 +192,13 @@ export const calendarService = {
   
   getUserCompletedTasks: async (userId, limit = 100) => {
     const response = await apiClient.get(`/calendar/user/${userId}/completed`, {
+      params: { limit }
+    })
+    return response.data
+  },
+  
+  getUserCancelledTasks: async (userId, limit = 100) => {
+    const response = await apiClient.get(`/calendar/user/${userId}/cancelled`, {
       params: { limit }
     })
     return response.data

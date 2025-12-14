@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { calendarService } from '../services'
-import { CheckCircle, Clock, AlertCircle, TrendingUp } from 'lucide-react'
+import { CheckCircle, Clock, AlertCircle, TrendingUp, XCircle } from 'lucide-react'
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
   const [stats, setStats] = useState({
     pending: 0,
-    completed: 0
+    completed: 0,
+    cancelled: 0
   })
   const [loading, setLoading] = useState(true)
   
@@ -17,14 +18,16 @@ export default function DashboardPage() {
   
   const loadStats = async () => {
     try {
-      const [pendingData, completedData] = await Promise.all([
+      const [pendingData, completedData, cancelledData] = await Promise.all([
         calendarService.getUserPendingTasks(user.id),
-        calendarService.getUserCompletedTasks(user.id, 30)
+        calendarService.getUserCompletedTasks(user.id, 30),
+        calendarService.getUserCancelledTasks(user.id, 30)
       ])
       
       setStats({
         pending: pendingData.pending_count,
-        completed: completedData.completed_count
+        completed: completedData.completed_count,
+        cancelled: cancelledData.cancelled_count
       })
     } catch (error) {
       console.error('Error loading stats:', error)
@@ -57,6 +60,14 @@ export default function DashboardPage() {
       color: 'bg-blue-500',
       textColor: 'text-blue-700',
       bgColor: 'bg-blue-50'
+    },
+    {
+      title: 'Tareas No Completadas',
+      value: stats.cancelled,
+      icon: XCircle,
+      color: 'bg-red-500',
+      textColor: 'text-red-700',
+      bgColor: 'bg-red-50'
     }
   ]
   
@@ -68,7 +79,7 @@ export default function DashboardPage() {
       </div>
       
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (

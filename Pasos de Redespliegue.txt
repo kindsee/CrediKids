@@ -1,0 +1,7 @@
+ 1091  cd /home/jmgalaminos/CrediKids/CrediKids/
+ 1092  git pull
+ 1093  cd frontend/
+ 1098  sudo npm run build
+ 1099  cd ..
+ 1100  cd backend/
+ 1101  source venv/bin/activate
