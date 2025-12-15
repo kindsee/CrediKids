@@ -209,3 +209,51 @@ def get_user_history(user_id):
         'reward_redemptions': [r.to_dict() for r in redemptions],
         'bonuses': [b.to_dict() for b in bonuses]
     }), 200
+
+@users_bp.route('/<int:user_id>/bonus', methods=['POST'])
+@admin_required
+def assign_bonus_credits(user_id):
+    """
+    Asignar créditos bonus a un usuario (premio especial)
+    Body: {
+        "credits": 50,
+        "description": "Premio por buen comportamiento" (opcional)
+    }
+    """
+    from models import Bonus
+    
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    if 'credits' not in data:
+        return jsonify({'error': 'credits is required'}), 400
+    
+    credits = int(data['credits'])
+    if credits <= 0:
+        return jsonify({'error': 'credits must be positive'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    description = data.get('description', 'Créditos bonus del administrador')
+    
+    # Crear registro de bonus
+    bonus = Bonus(
+        user_id=user_id,
+        credits=credits,
+        description=description,
+        assigned_by_id=admin_id
+    )
+    
+    # Asignar créditos al usuario
+    user.add_credits(credits)
+    
+    db.session.add(bonus)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Bonus credits assigned successfully',
+        'user': user.to_dict(),
+        'bonus': bonus.to_dict()
+    }), 200

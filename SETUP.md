@@ -120,7 +120,7 @@ cd backend
 .\venv\Scripts\Activate.ps1
 python app.py
 ```
-Deberías ver: `Running on http://127.0.0.1:5000`
+Deberías ver: `Running on http://127.0.0.1:5001`
 
 **Terminal 2 - Frontend:**
 ```powershell
@@ -133,14 +133,14 @@ Deberías ver: `Local: http://localhost:3000/`
 Abre tu navegador en `http://localhost:3000` y ejecuta en la consola del navegador (F12):
 
 ```javascript
-fetch('http://localhost:5000/api/icons/seed', { method: 'POST' })
+fetch('http://localhost:5001/api/icons/seed', { method: 'POST' })
   .then(r => r.json())
   .then(console.log)
 ```
 
 O usa Postman/curl:
 ```powershell
-curl -X POST http://localhost:5000/api/icons/seed
+curl -X POST http://localhost:5001/api/icons/seed
 ```
 
 ### 7. Crear Usuario Administrador
@@ -190,10 +190,10 @@ with app.app_context():
 ### Probar Backend
 ```powershell
 # Obtener iconos
-curl http://localhost:5000/api/icons
+curl http://localhost:5001/api/icons
 
 # Login
-curl -X POST http://localhost:5000/api/auth/login `
+curl -X POST http://localhost:5001/api/auth/login `
   -H "Content-Type: application/json" `
   -d '{"nick": "admin", "icon_codes": [1,2,3,4]}'
 ```
@@ -235,8 +235,8 @@ mysql -u credikids_user -p credikids_db
 
 ### Frontend no conecta con backend
 ```powershell
-# Verificar que backend está en puerto 5000
-netstat -ano | findstr :5000
+# Verificar que backend está en puerto 5001
+netstat -ano | findstr :5001
 
 # Verificar proxy en vite.config.js
 ```
@@ -327,7 +327,7 @@ sudo systemctl restart nginx
 pip install gunicorn
 
 # Ejecutar backend con gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+gunicorn -w 4 -b 0.0.0.0:5001 app:app
 ```
 
 ### 4. Configurar como Servicio (systemd)
@@ -341,7 +341,7 @@ After=network.target
 User=www-data
 WorkingDirectory=/var/www/credikids/backend
 Environment="PATH=/var/www/credikids/backend/venv/bin"
-ExecStart=/var/www/credikids/backend/venv/bin/gunicorn -w 4 -b 127.0.0.1:5000 app:app
+ExecStart=/var/www/credikids/backend/venv/bin/gunicorn -w 4 -b 127.0.0.1:5001 app:app
 
 [Install]
 WantedBy=multi-user.target
@@ -357,7 +357,7 @@ sudo systemctl status credikids-backend
 ### 5. Verificar Conexiones
 ```bash
 # Verificar backend responde
-curl http://localhost:5000/api/icons
+curl http://localhost:5001/api/icons
 
 # Verificar frontend puede acceder al backend
 # Abre tu-dominio.com en navegador y revisa consola de desarrollador

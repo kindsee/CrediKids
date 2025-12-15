@@ -5,7 +5,7 @@ Ejecutar desde: python test_endpoints.py
 import requests
 import json
 
-BASE_URL = 'http://localhost:5000/api'
+BASE_URL = 'http://localhost:5001/api'
 
 def test_login():
     """Login como admin para obtener token"""
@@ -50,7 +50,7 @@ def test_assign_bonus(token, user_id=2):
     """Probar endpoint de asignación de bonus"""
     headers = {'Authorization': f'Bearer {token}'}
     response = requests.post(
-        f'{BASE_URL}/tasks/users/{user_id}/bonus',
+        f'{BASE_URL}/users/{user_id}/bonus',
         headers=headers,
         json={
             'credits': 50,

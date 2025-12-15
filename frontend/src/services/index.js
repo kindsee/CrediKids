@@ -135,7 +135,7 @@ export const tasksService = {
   },
   
   assignBonusCredits: async (userId, bonusData) => {
-    const response = await apiClient.post(`/tasks/users/${userId}/bonus`, bonusData)
+    const response = await apiClient.post(`/users/${userId}/bonus`, bonusData)
     return response.data
   },
   
