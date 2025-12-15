@@ -145,7 +145,7 @@ export default function RewardsManagementPage() {
     }
   }
 
-  const iconOptions = ['🎁', '🎮', '🍕', '🍿', '🎬', '📚', '🎨', '⚽', '🎵', '🍦', '🎂', '🧸', '🎪', '🎯', '🏆']
+  const iconOptions = ['🎁', '🎮', '🍕', '🍿', '🎬', '📚', '🎨', '⚽', '🎵', '🍦', '🎂', '🧸', '🎪', '🎯', '🏆', '🪀', '🦕', '📱', '💰', '🛝']
 
   return (
     <div className="space-y-6">
@@ -256,8 +256,15 @@ export default function RewardsManagementPage() {
                       {reward.credit_cost} créditos
                     </span>
                     {reward.stock !== null && (
-                      <span className="text-sm text-gray-500">
-                        Stock: {reward.stock}
+                      <span className={`text-sm font-medium ${
+                        reward.available_stock <= 0 ? 'text-red-600' : 
+                        reward.available_stock <= 2 ? 'text-orange-600' : 
+                        'text-gray-600'
+                      }`}>
+                        Disponible: {reward.available_stock}
+                        {reward.available_stock !== reward.stock && (
+                          <span className="text-xs text-gray-500 ml-1">/ {reward.stock}</span>
+                        )}
                       </span>
                     )}
                   </div>

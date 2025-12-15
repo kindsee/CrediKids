@@ -37,5 +37,11 @@ class TaskAssignment(db.Model):
             'assigned_by_id': self.assigned_by_id,
             'created_at': self.created_at.isoformat(),
             'task': self.task.to_dict() if self.task else None,
+            'user': {
+                'id': self.user.id,
+                'nick': self.user.nick,
+                'figure': self.user.figure,
+                'role': self.user.role
+            } if self.user else None,
             'completion': self.completion.to_dict() if self.completion else None
         }

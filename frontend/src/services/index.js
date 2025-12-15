@@ -61,6 +61,23 @@ export const usersService = {
   getUserHistory: async (userId) => {
     const response = await apiClient.get(`/users/${userId}/history`)
     return response.data
+  },
+  
+  getAllUsersHistory: async (params = {}) => {
+    const queryParams = new URLSearchParams()
+    if (params.limit) queryParams.append('limit', params.limit)
+    if (params.date) queryParams.append('date', params.date)
+    
+    const response = await apiClient.get(`/users/all-history?${queryParams.toString()}`)
+    return response.data
+  },
+  
+  assignBonusCredits: async (userId, credits, description) => {
+    const response = await apiClient.post(`/users/${userId}/bonus`, {
+      credits,
+      description
+    })
+    return response.data
   }
 }
 
@@ -246,6 +263,22 @@ export const calendarService = {
     const response = await apiClient.get(`/calendar/user/${userId}/cancelled`, {
       params: { limit }
     })
+    return response.data
+  },
+  
+  getAllUsersTasks: async (date) => {
+    const response = await apiClient.get(`/calendar/all-users/${date}`)
+    return response.data
+  },
+  
+  getTodayStats: async () => {
+    const response = await apiClient.get('/calendar/today-stats')
+    return response.data
+  },
+  
+  getTodayTasks: async (status = null) => {
+    const params = status ? { status } : {}
+    const response = await apiClient.get('/calendar/today-tasks', { params })
     return response.data
   }
 }

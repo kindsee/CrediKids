@@ -22,6 +22,20 @@ class Reward(db.Model):
     # Relaciones
     redemptions = db.relationship('RewardRedemption', back_populates='reward', lazy='dynamic')
     
+    def get_available_stock(self):
+        """
+        Calcula el stock disponible considerando las solicitudes pendientes.
+        Retorna None si es ilimitado, o el número de unidades disponibles.
+        """
+        if self.stock is None:
+            return None  # Stock ilimitado
+        
+        # Contar solicitudes pendientes
+        pending_count = self.redemptions.filter_by(status='pending').count()
+        
+        # Stock disponible = stock actual - solicitudes pendientes
+        return self.stock - pending_count
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -31,6 +45,7 @@ class Reward(db.Model):
             'credit_cost': self.credit_cost,
             'is_active': self.is_active,
             'stock': self.stock,
+            'available_stock': self.get_available_stock(),
             'created_by_id': self.created_by_id,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { tasksService, usersService, authService } from '../services'
-import { CheckCircle, XCircle, RotateCcw, Star, User as UserIcon } from 'lucide-react'
+import { CheckCircle, XCircle, RotateCcw, Star, User as UserIcon, AlertTriangle } from 'lucide-react'
 
 export default function TaskValidationPage() {
   const { user } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('pending') // pending, cancelled, bonus
+  const [activeTab, setActiveTab] = useState('pending') // pending, cancelled, bonus, penalty
   const [pendingTasks, setPendingTasks] = useState([])
   const [cancelledTasks, setCancelledTasks] = useState([])
   const [users, setUsers] = useState([])
@@ -16,11 +16,14 @@ export default function TaskValidationPage() {
   // Modal states
   const [showValidateModal, setShowValidateModal] = useState(false)
   const [showBonusModal, setShowBonusModal] = useState(false)
+  const [showPenaltyModal, setShowPenaltyModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [validationScore, setValidationScore] = useState(3)
   const [validationNotes, setValidationNotes] = useState('')
   const [bonusCredits, setBonusCredits] = useState('')
   const [bonusDescription, setBonusDescription] = useState('')
+  const [penaltyCredits, setPenaltyCredits] = useState('')
+  const [penaltyDescription, setPenaltyDescription] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   
   useEffect(() => {
@@ -99,9 +102,15 @@ export default function TaskValidationPage() {
       return
     }
     
+    const credits = parseInt(bonusCredits)
+    if (credits <= 0) {
+      setError('Los créditos bonus deben ser positivos')
+      return
+    }
+    
     try {
       await tasksService.assignBonusCredits(selectedUserId, {
-        credits: parseInt(bonusCredits),
+        credits: credits,
         description: bonusDescription
       })
       
@@ -115,6 +124,37 @@ export default function TaskValidationPage() {
     } catch (error) {
       console.error('Error assigning bonus:', error)
       setError(error.response?.data?.error || 'Error al asignar el bonus')
+    }
+  }
+  
+  const handleAssignPenalty = async () => {
+    if (!selectedUserId || !penaltyCredits) {
+      setError('Debes seleccionar un usuario y una cantidad de créditos')
+      return
+    }
+    
+    const credits = parseInt(penaltyCredits)
+    if (credits >= 0) {
+      setError('Los créditos de penalización deben ser negativos')
+      return
+    }
+    
+    try {
+      await tasksService.assignBonusCredits(selectedUserId, {
+        credits: credits,
+        description: penaltyDescription
+      })
+      
+      setSuccess('¡Penalización aplicada correctamente!')
+      setShowPenaltyModal(false)
+      setSelectedUserId('')
+      setPenaltyCredits('')
+      setPenaltyDescription('')
+      
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (error) {
+      console.error('Error assigning penalty:', error)
+      setError(error.response?.data?.error || 'Error al aplicar la penalización')
     }
   }
   
@@ -186,6 +226,16 @@ export default function TaskValidationPage() {
           }`}
         >
           Asignar Bonus
+        </button>
+        <button
+          onClick={() => setActiveTab('penalty')}
+          className={`px-4 py-2 text-sm md:text-base font-medium border-b-2 transition-colors ${
+            activeTab === 'penalty'
+              ? 'border-red-500 text-red-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Penalizar
         </button>
       </div>
       
@@ -267,7 +317,7 @@ export default function TaskValidationPage() {
               </div>
             ))
           )
-        ) : (
+        ) : activeTab === 'bonus' ? (
           <div className="card">
             <button
               onClick={() => setShowBonusModal(true)}
@@ -276,6 +326,17 @@ export default function TaskValidationPage() {
               <Star size={48} className="mx-auto text-yellow-500 mb-2" />
               <h3 className="text-lg font-semibold">Asignar Créditos Bonus</h3>
               <p className="text-sm text-gray-600 mt-1">Otorgar créditos especiales a un usuario</p>
+            </button>
+          </div>
+        ) : (
+          <div className="card">
+            <button
+              onClick={() => setShowPenaltyModal(true)}
+              className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-colors"
+            >
+              <AlertTriangle size={48} className="mx-auto text-red-500 mb-2" />
+              <h3 className="text-lg font-semibold">Aplicar Penalización</h3>
+              <p className="text-sm text-gray-600 mt-1">Quitar créditos a un usuario</p>
             </button>
           </div>
         )}
@@ -386,7 +447,7 @@ export default function TaskValidationPage() {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cantidad de créditos
+                Cantidad de créditos (positivos)
               </label>
               <input
                 type="number"
@@ -434,6 +495,90 @@ export default function TaskValidationPage() {
                 className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
               >
                 Asignar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Penalty Modal */}
+      {showPenaltyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-4 md:p-6">
+            <h3 className="text-lg md:text-xl font-bold mb-4 text-red-600 flex items-center gap-2">
+              <AlertTriangle size={24} />
+              Aplicar Penalización
+            </h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Usuario
+              </label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Seleccionar usuario...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nick} ({u.score} créditos)
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cantidad de créditos (negativos)
+              </label>
+              <input
+                type="number"
+                value={penaltyCredits}
+                onChange={(e) => setPenaltyCredits(e.target.value)}
+                placeholder="-50"
+                max="-1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Introduce un valor negativo (ej: -50)</p>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo (opcional)
+              </label>
+              <textarea
+                value={penaltyDescription}
+                onChange={(e) => setPenaltyDescription(e.target.value)}
+                placeholder="Mal comportamiento, incumplimiento de normas, etc..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-sm"
+                rows="3"
+              />
+            </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+                {error}
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPenaltyModal(false)
+                  setSelectedUserId('')
+                  setPenaltyCredits('')
+                  setPenaltyDescription('')
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAssignPenalty}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Penalizar
               </button>
             </div>
           </div>

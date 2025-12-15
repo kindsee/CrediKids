@@ -23,8 +23,7 @@ export default function Sidebar() {
     { to: '/calendar', icon: Calendar, label: 'Calendario' },
     { to: '/tasks', icon: ListTodo, label: 'Tareas' },
     { to: '/proposals', icon: Lightbulb, label: 'Propuestas' },
-    { to: '/rewards', icon: Gift, label: 'Premios' },
-    { to: '/history', icon: History, label: 'Historial' }
+    { to: '/rewards', icon: Gift, label: 'Premios' }
   ]
   
   if (isAdmin) {

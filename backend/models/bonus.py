@@ -24,5 +24,11 @@ class Bonus(db.Model):
             'description': self.description,
             'assigned_by_id': self.assigned_by_id,
             'assigned_by': self.assigned_by.nick if self.assigned_by else None,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'user': {
+                'id': self.user.id,
+                'nick': self.user.nick,
+                'figure': self.user.figure,
+                'role': self.user.role
+            } if self.user else None
         }

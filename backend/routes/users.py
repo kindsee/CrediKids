@@ -210,13 +210,64 @@ def get_user_history(user_id):
         'bonuses': [b.to_dict() for b in bonuses]
     }), 200
 
+@users_bp.route('/all-history', methods=['GET'])
+@admin_required
+def get_all_users_history():
+    """
+    Obtener historial de créditos de todos los usuarios (solo admin)
+    Query params:
+        - limit: número máximo de registros por categoría (default 50)
+        - date: fecha específica YYYY-MM-DD (opcional)
+    """
+    from models import TaskCompletion, RewardRedemption, Bonus
+    from datetime import datetime
+    
+    limit = request.args.get('limit', 50, type=int)
+    date_str = request.args.get('date')
+    
+    # Si se especifica fecha, filtrar por ese día
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            # Rango del día completo
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            end_datetime = datetime.combine(target_date, datetime.max.time())
+            
+            completions = TaskCompletion.query.filter(
+                TaskCompletion.completed_at >= start_datetime,
+                TaskCompletion.completed_at <= end_datetime
+            ).order_by(TaskCompletion.completed_at.desc()).limit(limit).all()
+            
+            redemptions = RewardRedemption.query.filter(
+                RewardRedemption.redeemed_at >= start_datetime,
+                RewardRedemption.redeemed_at <= end_datetime
+            ).order_by(RewardRedemption.redeemed_at.desc()).limit(limit).all()
+            
+            bonuses = Bonus.query.filter(
+                Bonus.created_at >= start_datetime,
+                Bonus.created_at <= end_datetime
+            ).order_by(Bonus.created_at.desc()).limit(limit).all()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    else:
+        # Sin filtro de fecha, obtener los más recientes
+        completions = TaskCompletion.query.order_by(TaskCompletion.completed_at.desc()).limit(limit).all()
+        redemptions = RewardRedemption.query.order_by(RewardRedemption.redeemed_at.desc()).limit(limit).all()
+        bonuses = Bonus.query.order_by(Bonus.created_at.desc()).limit(limit).all()
+    
+    return jsonify({
+        'task_completions': [c.to_dict() for c in completions],
+        'reward_redemptions': [r.to_dict() for r in redemptions],
+        'bonuses': [b.to_dict() for b in bonuses]
+    }), 200
+
 @users_bp.route('/<int:user_id>/bonus', methods=['POST'])
 @admin_required
 def assign_bonus_credits(user_id):
     """
-    Asignar créditos bonus a un usuario (premio especial)
+    Asignar créditos bonus/castigo a un usuario
     Body: {
-        "credits": 50,
+        "credits": 50 (positivo para bonus, negativo para castigo),
         "description": "Premio por buen comportamiento" (opcional)
     }
     """
@@ -229,16 +280,20 @@ def assign_bonus_credits(user_id):
         return jsonify({'error': 'credits is required'}), 400
     
     credits = int(data['credits'])
-    if credits <= 0:
-        return jsonify({'error': 'credits must be positive'}), 400
+    if credits == 0:
+        return jsonify({'error': 'credits cannot be zero'}), 400
     
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    description = data.get('description', 'Créditos bonus del administrador')
+    # Descripción por defecto según el tipo
+    if 'description' not in data:
+        description = 'Bonus del administrador' if credits > 0 else 'Penalización del administrador'
+    else:
+        description = data.get('description')
     
-    # Crear registro de bonus
+    # Crear registro de bonus (puede ser negativo)
     bonus = Bonus(
         user_id=user_id,
         credits=credits,
@@ -246,14 +301,17 @@ def assign_bonus_credits(user_id):
         assigned_by_id=admin_id
     )
     
-    # Asignar créditos al usuario
-    user.add_credits(credits)
+    # Asignar o restar créditos al usuario
+    if credits > 0:
+        user.add_credits(credits)
+    else:
+        user.subtract_credits(abs(credits))
     
     db.session.add(bonus)
     db.session.commit()
     
     return jsonify({
-        'message': 'Bonus credits assigned successfully',
+        'message': 'Credits assigned successfully',
         'user': user.to_dict(),
         'bonus': bonus.to_dict()
     }), 200

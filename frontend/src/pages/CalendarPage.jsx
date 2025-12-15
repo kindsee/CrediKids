@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
-import { calendarService, tasksService, authService } from '../services'
-import { ChevronLeft, ChevronRight, CheckCircle, Circle, Clock, MessageSquare } from 'lucide-react'
+import { calendarService, tasksService, authService, usersService } from '../services'
+import { ChevronLeft, ChevronRight, CheckCircle, Circle, Clock, MessageSquare, Filter, XCircle } from 'lucide-react'
 
 export default function CalendarPage() {
   const { user, updateUser } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
+  
   const [currentDate, setCurrentDate] = useState(new Date())
   const [calendarData, setCalendarData] = useState({})
   const [loading, setLoading] = useState(false)
@@ -18,14 +20,33 @@ export default function CalendarPage() {
   const [cancellationReason, setCancellationReason] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  
+  // Para filtro de admin
+  const [users, setUsers] = useState([])
+  const [selectedUserId, setSelectedUserId] = useState('all') // 'all' para todos los usuarios
 
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
   useEffect(() => {
+    if (isAdmin) {
+      loadUsers()
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
     fetchCalendarData()
-  }, [currentDate, user])
+  }, [currentDate, user, selectedUserId])
+  
+  const loadUsers = async () => {
+    try {
+      const data = await usersService.getUsers()
+      setUsers(data.filter(u => u.role === 'user'))
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
 
   const fetchCalendarData = async () => {
     if (!user) return
@@ -39,13 +60,38 @@ export default function CalendarPage() {
       const startDate = new Date(year, month, 1)
       const endDate = new Date(year, month + 1, 0)
       
-      const response = await calendarService.getUserCalendar(
-        user.id,
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
-      )
+      let response
       
-      setCalendarData(response.calendar || {})
+      if (isAdmin && selectedUserId === 'all') {
+        // Admin viendo todos los usuarios: cargar todas las tareas del mes
+        response = await calendarService.getUserCalendar(
+          user.id,
+          startDate.toISOString().split('T')[0],
+          endDate.toISOString().split('T')[0]
+        )
+        
+        // Cargar tareas de todos los usuarios día por día
+        const allTasksByDate = {}
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0]
+          try {
+            const dayTasks = await calendarService.getAllUsersTasks(dateStr)
+            allTasksByDate[dateStr] = dayTasks
+          } catch (err) {
+            console.error(`Error loading tasks for ${dateStr}:`, err)
+          }
+        }
+        setCalendarData(allTasksByDate)
+      } else {
+        // Usuario normal o admin filtrando por usuario específico
+        const targetUserId = isAdmin && selectedUserId !== 'all' ? parseInt(selectedUserId) : user.id
+        response = await calendarService.getUserCalendar(
+          targetUserId,
+          startDate.toISOString().split('T')[0],
+          endDate.toISOString().split('T')[0]
+        )
+        setCalendarData(response.calendar || {})
+      }
     } catch (error) {
       console.error('Error fetching calendar:', error)
       setError('Error al cargar el calendario')
@@ -235,6 +281,28 @@ export default function CalendarPage() {
           </button>
         </div>
       </div>
+      
+      {/* Filtro de usuario para admin */}
+      {isAdmin && (
+        <div className="card">
+          <div className="flex items-center gap-3">
+            <Filter size={20} />
+            <label className="font-medium">Filtrar por usuario:</label>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="input flex-1 max-w-md"
+            >
+              <option value="all">Todos los usuarios</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.figure} {u.nick}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
@@ -302,7 +370,7 @@ export default function CalendarPage() {
                                 ? 'opacity-60 cursor-not-allowed line-through' 
                                 : 'hover:scale-105 cursor-pointer hover:shadow-sm'
                             }`}
-                            title={task.task?.title}
+                            title={`${isAdmin && task.user ? task.user.nick + ': ' : ''}${task.task?.title}`}
                           >
                             <div className="flex items-center space-x-1">
                               {task.is_completed ? (
@@ -311,6 +379,9 @@ export default function CalendarPage() {
                                 <span className="text-red-600 flex-shrink-0">✕</span>
                               ) : (
                                 <Circle size={12} className="flex-shrink-0" />
+                              )}
+                              {isAdmin && task.user && (
+                                <span className="flex-shrink-0 text-sm">{task.user.figure}</span>
                               )}
                               <span className="truncate flex-1">{task.task?.title}</span>
                             </div>
@@ -406,6 +477,12 @@ export default function CalendarPage() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
+                        {isAdmin && task.user && (
+                          <div className="flex items-center gap-2 mb-2 text-sm">
+                            <span className="text-xl">{task.user.figure}</span>
+                            <span className="font-medium text-gray-700">{task.user.nick}</span>
+                          </div>
+                        )}
                         <div className="flex items-center space-x-2 mb-1">
                           {isCompleted ? (
                             <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
@@ -523,20 +600,33 @@ export default function CalendarPage() {
               </div>
             )}
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-between space-x-3">
               <button
-                onClick={closeCompleteModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => {
+                  closeCompleteModal()
+                  openCancelModal(selectedTask)
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center space-x-2"
               >
-                Cancelar
+                <XCircle size={18} />
+                <span>No Completar</span>
               </button>
-              <button
-                onClick={handleCompleteTask}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
-              >
-                <CheckCircle size={18} />
-                <span>Completar Tarea</span>
-              </button>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={closeCompleteModal}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCompleteTask}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                >
+                  <CheckCircle size={18} />
+                  <span>Completar Tarea</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

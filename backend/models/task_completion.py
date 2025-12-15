@@ -51,5 +51,11 @@ class TaskCompletion(db.Model):
             'validated_at': self.validated_at.isoformat() if self.validated_at else None,
             'validation_notes': self.validation_notes,
             'credits_awarded': self.credits_awarded,
-            'task': self.task.to_dict() if self.task else None
+            'task': self.task.to_dict() if self.task else None,
+            'user': {
+                'id': self.user.id,
+                'nick': self.user.nick,
+                'figure': self.user.figure,
+                'role': self.user.role
+            } if self.user else None
         }

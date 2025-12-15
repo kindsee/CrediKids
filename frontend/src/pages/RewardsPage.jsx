@@ -195,7 +195,7 @@ export default function RewardsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {rewards.map(reward => {
                 const affordable = canAfford(reward.credit_cost)
-                const outOfStock = reward.stock !== null && reward.stock <= 0
+                const outOfStock = reward.available_stock !== null && reward.available_stock <= 0
                 
                 return (
                   <div 
@@ -215,8 +215,12 @@ export default function RewardsPage() {
                           {reward.credit_cost} créditos
                         </span>
                         {reward.stock !== null && (
-                          <span className="text-sm text-gray-500">
-                            Stock: {reward.stock}
+                          <span className={`text-sm font-medium ${
+                            reward.available_stock <= 0 ? 'text-red-600' : 
+                            reward.available_stock <= 2 ? 'text-orange-600' : 
+                            'text-gray-600'
+                          }`}>
+                            Disponible: {reward.available_stock}
                           </span>
                         )}
                       </div>

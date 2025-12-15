@@ -5,7 +5,10 @@ import { CheckCircle, Clock, TrendingUp, XCircle, X, MessageSquare } from 'lucid
 
 export default function DashboardPage() {
   const { user, updateUser } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
+  
   const [stats, setStats] = useState({
+    credits: 0,
     pending: 0,
     completed: 0,
     cancelled: 0
@@ -25,21 +28,34 @@ export default function DashboardPage() {
   
   useEffect(() => {
     loadStats()
-  }, [])
+  }, [user])
   
   const loadStats = async () => {
     try {
-      const [pendingData, completedData, cancelledData] = await Promise.all([
-        calendarService.getUserPendingTasks(user.id),
-        calendarService.getUserCompletedTasks(user.id, 30),
-        calendarService.getUserCancelledTasks(user.id, 30)
-      ])
-      
-      setStats({
-        pending: pendingData.pending_count,
-        completed: completedData.completed_count,
-        cancelled: cancelledData.cancelled_count
-      })
+      if (isAdmin) {
+        // Admin: Estadísticas del día de hoy de todos los usuarios
+        const todayStats = await calendarService.getTodayStats()
+        setStats({
+          credits: todayStats.total_credits || 0,
+          pending: todayStats.pending_tasks || 0,
+          completed: todayStats.completed_tasks || 0,
+          cancelled: todayStats.cancelled_tasks || 0
+        })
+      } else {
+        // Usuario: Estadísticas personales (todas las pendientes, últimas 30 completadas/canceladas)
+        const [pendingData, completedData, cancelledData] = await Promise.all([
+          calendarService.getUserPendingTasks(user.id),
+          calendarService.getUserCompletedTasks(user.id, 30),
+          calendarService.getUserCancelledTasks(user.id, 30)
+        ])
+        
+        setStats({
+          credits: user.score || 0,
+          pending: pendingData.pending_count,
+          completed: completedData.completed_count,
+          cancelled: cancelledData.cancelled_count
+        })
+      }
     } catch (error) {
       console.error('Error loading stats:', error)
     } finally {
@@ -55,43 +71,96 @@ export default function DashboardPage() {
     
     try {
       if (type === 'credits') {
-        const history = await usersService.getUserHistory(user.id)
-        // Combinar completions, redemptions y bonuses en una sola lista
-        const completions = (history.task_completions || []).map(item => ({
-          ...item,
-          type: 'completion',
-          date: item.completed_at,
-          credits: item.credits_awarded,
-          description: item.task?.title || 'Tarea completada'
-        }))
-        const redemptions = (history.reward_redemptions || []).map(item => ({
-          ...item,
-          type: 'redemption',
-          date: item.redeemed_at,
-          credits: item.status === 'rejected' ? 0 : -item.credits_spent,
-          description: item.reward?.name || 'Premio canjeado'
-        }))
-        const bonuses = (history.bonuses || []).map(item => ({
-          ...item,
-          type: 'bonus',
-          date: item.created_at,
-          credits: item.credits,
-          description: item.description || 'Bonus del administrador'
-        }))
-        // Combinar y ordenar por fecha
-        const combined = [...completions, ...redemptions, ...bonuses].sort((a, b) => 
-          new Date(b.date) - new Date(a.date)
-        )
-        setModalData(combined)
+        if (isAdmin) {
+          // Admin: Historial de todos los usuarios del día de hoy
+          const today = new Date().toISOString().split('T')[0]
+          const history = await usersService.getAllUsersHistory({ date: today })
+          
+          // Combinar completions, redemptions y bonuses en una sola lista
+          const completions = (history.task_completions || []).map(item => ({
+            ...item,
+            type: 'completion',
+            date: item.completed_at,
+            credits: item.credits_awarded,
+            description: item.task?.title || 'Tarea completada'
+          }))
+          const redemptions = (history.reward_redemptions || []).map(item => ({
+            ...item,
+            type: 'redemption',
+            date: item.redeemed_at,
+            credits: item.status === 'rejected' ? 0 : -item.credits_spent,
+            description: item.reward?.name || 'Premio canjeado'
+          }))
+          const bonuses = (history.bonuses || []).map(item => ({
+            ...item,
+            type: item.credits > 0 ? 'bonus' : 'penalty',
+            date: item.created_at,
+            credits: item.credits,
+            description: item.description || (item.credits > 0 ? 'Bonus del administrador' : 'Penalización del administrador')
+          }))
+          
+          // Combinar y ordenar por fecha
+          const combined = [...completions, ...redemptions, ...bonuses].sort((a, b) => 
+            new Date(b.date) - new Date(a.date)
+          )
+          setModalData(combined)
+        } else {
+          const history = await usersService.getUserHistory(user.id)
+          // Combinar completions, redemptions y bonuses en una sola lista
+          const completions = (history.task_completions || []).map(item => ({
+            ...item,
+            type: 'completion',
+            date: item.completed_at,
+            credits: item.credits_awarded,
+            description: item.task?.title || 'Tarea completada'
+          }))
+          const redemptions = (history.reward_redemptions || []).map(item => ({
+            ...item,
+            type: 'redemption',
+            date: item.redeemed_at,
+            credits: item.status === 'rejected' ? 0 : -item.credits_spent,
+            description: item.reward?.name || 'Premio canjeado'
+          }))
+          const bonuses = (history.bonuses || []).map(item => ({
+            ...item,
+            type: item.credits > 0 ? 'bonus' : 'penalty',
+            date: item.created_at,
+            credits: item.credits,
+            description: item.description || (item.credits > 0 ? 'Bonus del administrador' : 'Penalización del administrador')
+          }))
+          // Combinar y ordenar por fecha
+          const combined = [...completions, ...redemptions, ...bonuses].sort((a, b) => 
+            new Date(b.date) - new Date(a.date)
+          )
+          setModalData(combined)
+        }
       } else if (type === 'pending') {
-        const data = await calendarService.getUserPendingTasks(user.id)
-        setModalData(data.tasks || [])
+        if (isAdmin) {
+          // Admin: Tareas pendientes de hoy de todos los usuarios
+          const data = await calendarService.getTodayTasks('pending')
+          setModalData(data.tasks || [])
+        } else {
+          const data = await calendarService.getUserPendingTasks(user.id)
+          setModalData(data.tasks || [])
+        }
       } else if (type === 'completed') {
-        const data = await calendarService.getUserCompletedTasks(user.id, 30)
-        setModalData(data.tasks || [])
+        if (isAdmin) {
+          // Admin: Tareas completadas de hoy de todos los usuarios
+          const data = await calendarService.getTodayTasks('completed')
+          setModalData(data.tasks || [])
+        } else {
+          const data = await calendarService.getUserCompletedTasks(user.id, 30)
+          setModalData(data.tasks || [])
+        }
       } else if (type === 'cancelled') {
-        const data = await calendarService.getUserCancelledTasks(user.id, 30)
-        setModalData(data.tasks || [])
+        if (isAdmin) {
+          // Admin: Tareas canceladas de hoy de todos los usuarios
+          const data = await calendarService.getTodayTasks('cancelled')
+          setModalData(data.tasks || [])
+        } else {
+          const data = await calendarService.getUserCancelledTasks(user.id, 30)
+          setModalData(data.tasks || [])
+        }
       }
     } catch (error) {
       console.error('Error loading modal data:', error)
@@ -190,8 +259,8 @@ export default function DashboardPage() {
   
   const statCards = [
     {
-      title: 'Créditos',
-      value: user?.score || 0,
+      title: isAdmin ? 'Créditos Gestionados Hoy' : 'Créditos Totales',
+      value: stats.credits,
       icon: TrendingUp,
       color: 'bg-green-500',
       textColor: 'text-green-700',
@@ -199,7 +268,7 @@ export default function DashboardPage() {
       type: 'credits'
     },
     {
-      title: 'Tareas Pendientes',
+      title: isAdmin ? 'Tareas Pendientes Hoy' : 'Tareas Pendientes',
       value: stats.pending,
       icon: Clock,
       color: 'bg-orange-500',
@@ -208,7 +277,7 @@ export default function DashboardPage() {
       type: 'pending'
     },
     {
-      title: 'Tareas Completadas',
+      title: isAdmin ? 'Tareas Completadas Hoy' : 'Tareas Completadas (30d)',
       value: stats.completed,
       icon: CheckCircle,
       color: 'bg-blue-500',
@@ -217,7 +286,7 @@ export default function DashboardPage() {
       type: 'completed'
     },
     {
-      title: 'Tareas No Completadas',
+      title: isAdmin ? 'Tareas Rechazadas Hoy' : 'Tareas No Completadas (30d)',
       value: stats.cancelled,
       icon: XCircle,
       color: 'bg-red-500',
@@ -272,10 +341,10 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
               <h3 className="text-lg md:text-xl font-bold">
-                {modalType === 'credits' && 'Historial de Créditos'}
-                {modalType === 'pending' && 'Tareas Pendientes'}
-                {modalType === 'completed' && 'Tareas Completadas'}
-                {modalType === 'cancelled' && 'Tareas No Completadas'}
+                {modalType === 'credits' && (isAdmin ? 'Créditos Gestionados Hoy' : 'Historial de Créditos')}
+                {modalType === 'pending' && (isAdmin ? 'Tareas Pendientes de Hoy' : 'Tareas Pendientes')}
+                {modalType === 'completed' && (isAdmin ? 'Tareas Completadas de Hoy' : 'Tareas Completadas')}
+                {modalType === 'cancelled' && (isAdmin ? 'Tareas Rechazadas de Hoy' : 'Tareas No Completadas')}
               </h3>
               <button
                 onClick={closeModal}
@@ -299,10 +368,17 @@ export default function DashboardPage() {
                       <div key={index} className="p-3 md:p-4 border border-gray-200 rounded-lg">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
+                            {isAdmin && item.user && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-lg">{item.user.figure}</span>
+                                <span className="font-medium text-gray-700 text-sm">{item.user.nick}</span>
+                              </div>
+                            )}
                             <p className="font-semibold text-sm md:text-base">
                               {item.type === 'completion' ? '✅ Tarea completada' : 
                                item.type === 'redemption' ? '🎁 Premio canjeado' :
                                item.type === 'bonus' ? '⭐ Bonus especial' : 
+                               item.type === 'penalty' ? '⚠️ Penalización' :
                                '📋 Actividad'}
                             </p>
                             <p className="text-xs md:text-sm text-gray-600 mt-1">
@@ -319,7 +395,7 @@ export default function DashboardPage() {
                             </p>
                           </div>
                           <div className={`text-base md:text-lg font-bold ml-4 ${
-                            item.credits > 0 ? 'text-green-600' : 'text-red-600'
+                            item.credits > 0 ? 'text-green-600' : item.credits < 0 ? 'text-red-600' : 'text-gray-600'
                           }`}>
                             {item.credits > 0 ? `+${item.credits}` : item.credits}
                           </div>
@@ -333,10 +409,16 @@ export default function DashboardPage() {
                       <div key={task.id} className={`p-3 md:p-4 border-2 rounded-lg ${getTaskTypeColor(task.task?.task_type)}`}>
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex-1 min-w-0">
+                            {isAdmin && task.user && (
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xl">{task.user.figure}</span>
+                                <span className="font-medium text-gray-700 text-sm">{task.user.nick}</span>
+                              </div>
+                            )}
                             <h4 className="font-semibold text-sm md:text-base break-words">{task.task?.title}</h4>
                             <p className="text-xs md:text-sm text-gray-600 mt-1 break-words">{task.task?.description}</p>
                             <div className="flex flex-wrap gap-2 mt-2">
-                              <span className="text-xs px-2 py-1 bg-white rounded">
+                              <span className="text-xs px-2 py-1 bg-white rounded font-semibold text-green-600">
                                 {task.task?.base_value} créditos
                               </span>
                               <span className="text-xs px-2 py-1 bg-white rounded">
@@ -344,50 +426,72 @@ export default function DashboardPage() {
                               </span>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => openCompleteModal(task)}
-                              className="px-3 py-1.5 bg-green-600 text-white text-xs md:text-sm rounded-lg hover:bg-green-700 whitespace-nowrap"
-                            >
-                              Completar
-                            </button>
-                            <button
-                              onClick={() => openCancelModal(task)}
-                              className="px-3 py-1.5 bg-red-600 text-white text-xs md:text-sm rounded-lg hover:bg-red-700 whitespace-nowrap"
-                            >
-                              No hacer
-                            </button>
-                          </div>
+                          {!isAdmin && (
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => openCompleteModal(task)}
+                                className="px-3 py-1.5 bg-green-600 text-white text-xs md:text-sm rounded-lg hover:bg-green-700 whitespace-nowrap"
+                              >
+                                Completar
+                              </button>
+                              <button
+                                onClick={() => openCancelModal(task)}
+                                className="px-3 py-1.5 bg-red-600 text-white text-xs md:text-sm rounded-lg hover:bg-red-700 whitespace-nowrap"
+                              >
+                                No hacer
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))
                   )}
                   
                   {(modalType === 'completed' || modalType === 'cancelled') && (
-                    modalData.map((task) => (
-                      <div key={task.id} className={`p-3 md:p-4 border-2 rounded-lg opacity-70 ${getTaskTypeColor(task.task?.task_type)}`}>
-                        <h4 className="font-semibold text-sm md:text-base line-through">{task.task?.title}</h4>
-                        <p className="text-xs md:text-sm text-gray-600 mt-1">{task.task?.description}</p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="text-xs px-2 py-1 bg-white rounded">
-                            {task.task?.base_value} créditos
-                          </span>
-                          <span className="text-xs px-2 py-1 bg-white rounded">
-                            {new Date(task.assigned_date).toLocaleDateString('es-ES')}
-                          </span>
-                          {modalType === 'completed' && (
-                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                              ✓ Completada
-                            </span>
+                    modalData.map((task) => {
+                      // Calcular créditos según el tipo y estado
+                      let credits = 0
+                      if (modalType === 'completed' && task.completion) {
+                        credits = task.completion.credits_awarded || 0
+                      } else if (modalType === 'cancelled' && task.task?.task_type === 'obligatory') {
+                        credits = -(task.task?.base_value || 0)
+                      }
+                      
+                      return (
+                        <div key={task.id} className={`p-3 md:p-4 border-2 rounded-lg opacity-70 ${getTaskTypeColor(task.task?.task_type)}`}>
+                          {isAdmin && task.user && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">{task.user.figure}</span>
+                              <span className="font-medium text-gray-700 text-sm">{task.user.nick}</span>
+                            </div>
                           )}
-                          {modalType === 'cancelled' && (
-                            <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">
-                              ✕ No completada
+                          <h4 className="font-semibold text-sm md:text-base line-through">{task.task?.title}</h4>
+                          <p className="text-xs md:text-sm text-gray-600 mt-1">{task.task?.description}</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {credits !== 0 && (
+                              <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                credits > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {credits > 0 ? `+${credits}` : credits} créditos
+                              </span>
+                            )}
+                            <span className="text-xs px-2 py-1 bg-white rounded">
+                              {new Date(task.assigned_date).toLocaleDateString('es-ES')}
                             </span>
-                          )}
+                            {modalType === 'completed' && (
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                ✓ Completada
+                              </span>
+                            )}
+                            {modalType === 'cancelled' && (
+                              <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">
+                                ✕ No completada
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               )}

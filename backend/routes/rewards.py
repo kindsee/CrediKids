@@ -137,8 +137,9 @@ def redeem_reward(reward_id):
     if not reward.is_active:
         return jsonify({'error': 'Reward is not available'}), 400
     
-    # Verificar stock
-    if reward.stock is not None and reward.stock <= 0:
+    # Verificar stock disponible (considerando solicitudes pendientes)
+    available_stock = reward.get_available_stock()
+    if available_stock is not None and available_stock <= 0:
         return jsonify({'error': 'Reward out of stock'}), 400
     
     # Calcular créditos disponibles (restando solicitudes pendientes)

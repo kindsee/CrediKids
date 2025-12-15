@@ -199,3 +199,119 @@ def get_user_completed_tasks(user_id):
         'completed_count': len(completed_assignments),
         'tasks': [a.to_dict() for a in completed_assignments]
     }), 200
+
+@calendar_bp.route('/all-users/<date>', methods=['GET'])
+@jwt_required()
+def get_all_users_tasks(date):
+    """
+    Obtener tareas de todos los usuarios para un día específico (solo admin)
+    """
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    try:
+        target_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    
+    # Obtener todas las asignaciones para ese día
+    assignments = TaskAssignment.query.filter(
+        TaskAssignment.assigned_date == target_date
+    ).order_by(TaskAssignment.user_id).all()
+    
+    return jsonify([a.to_dict() for a in assignments]), 200
+
+@calendar_bp.route('/today-stats', methods=['GET'])
+@jwt_required()
+def get_today_stats():
+    """
+    Obtener estadísticas del día actual para admin
+    """
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    today = datetime.now().date()
+    
+    # Tareas de hoy
+    today_assignments = TaskAssignment.query.filter(
+        TaskAssignment.assigned_date == today
+    ).all()
+    
+    # Calcular estadísticas
+    total_credits = 0
+    pending_count = 0
+    completed_count = 0
+    cancelled_count = 0
+    
+    for assignment in today_assignments:
+        if assignment.is_completed:
+            completed_count += 1
+            # Obtener créditos otorgados de la completion
+            completion = TaskCompletion.query.filter_by(assignment_id=assignment.id).first()
+            if completion:
+                total_credits += completion.credits_awarded or 0
+        elif assignment.is_cancelled:
+            cancelled_count += 1
+            # Si es obligatoria y fue cancelada, restar penalización (base_value)
+            if assignment.task.task_type == 'obligatory':
+                total_credits -= assignment.task.base_value or 0
+        else:
+            pending_count += 1
+    
+    return jsonify({
+        'date': today.isoformat(),
+        'total_credits': total_credits,
+        'pending_tasks': pending_count,
+        'completed_tasks': completed_count,
+        'cancelled_tasks': cancelled_count
+    }), 200
+
+@calendar_bp.route('/today-tasks', methods=['GET'])
+@jwt_required()
+def get_today_tasks():
+    """
+    Obtener tareas del día actual de todos los usuarios (solo admin)
+    Query params:
+        - status: 'pending'|'completed'|'cancelled' (opcional, devuelve todas si no se especifica)
+    """
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    today = datetime.now().date()
+    status = request.args.get('status')
+    
+    # Query base
+    query = TaskAssignment.query.filter(
+        TaskAssignment.assigned_date == today
+    )
+    
+    # Filtrar por estado si se especifica
+    if status == 'pending':
+        query = query.filter(
+            and_(
+                TaskAssignment.is_completed.is_(False),
+                TaskAssignment.is_cancelled.is_(False)
+            )
+        )
+    elif status == 'completed':
+        query = query.filter(TaskAssignment.is_completed.is_(True))
+    elif status == 'cancelled':
+        query = query.filter(TaskAssignment.is_cancelled.is_(True))
+    
+    assignments = query.order_by(TaskAssignment.user_id).all()
+    
+    return jsonify({
+        'date': today.isoformat(),
+        'status': status,
+        'count': len(assignments),
+        'tasks': [a.to_dict() for a in assignments]
+    }), 200
