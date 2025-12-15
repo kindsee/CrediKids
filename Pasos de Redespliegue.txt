@@ -5,3 +5,16 @@
  1099  cd ..
  1100  cd backend/
  1101  source venv/bin/activate
+
+
+
+# 1. Actualizar código
+cd /var/www/credikids/backend
+git pull origin main
+
+# 2. Verificar sintaxis
+python -m py_compile routes/calendar.py routes/tasks.py
+
+# 3. Reiniciar backend
+sudo systemctl restart credikids-backend
+

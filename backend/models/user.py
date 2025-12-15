@@ -19,7 +19,7 @@ class User(db.Model):
     task_assignments = db.relationship('TaskAssignment', foreign_keys='TaskAssignment.user_id', back_populates='user', lazy='dynamic')
     task_completions = db.relationship('TaskCompletion', foreign_keys='TaskCompletion.user_id', back_populates='user', lazy='dynamic')
     task_proposals = db.relationship('TaskProposal', foreign_keys='TaskProposal.user_id', back_populates='user', lazy='dynamic')
-    reward_redemptions = db.relationship('RewardRedemption', back_populates='user', lazy='dynamic')
+    reward_redemptions = db.relationship('RewardRedemption', foreign_keys='RewardRedemption.user_id', back_populates='user', lazy='dynamic')
     
     def set_access_code(self, icon_ids):
         """

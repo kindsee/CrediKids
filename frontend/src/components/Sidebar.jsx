@@ -10,7 +10,8 @@ import {
   Users,
   Settings,
   CalendarClock,
-  CheckSquare
+  CheckSquare,
+  Package
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -31,7 +32,8 @@ export default function Sidebar() {
       { to: '/users', icon: Users, label: 'Usuarios' },
       { to: '/tasks-management', icon: Settings, label: 'Gestión Tareas' },
       { to: '/task-assignment', icon: CalendarClock, label: 'Asignar Tareas' },
-      { to: '/task-validation', icon: CheckSquare, label: 'Validar Tareas' }
+      { to: '/task-validation', icon: CheckSquare, label: 'Validar Tareas' },
+      { to: '/rewards-management', icon: Package, label: 'Gestión Premios' }
     )
   }
   

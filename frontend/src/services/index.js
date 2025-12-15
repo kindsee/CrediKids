@@ -189,6 +189,31 @@ export const rewardsService = {
   getRedemptions: async () => {
     const response = await apiClient.get('/rewards/redemptions')
     return response.data
+  },
+  
+  getPendingRedemptions: async () => {
+    const response = await apiClient.get('/rewards/redemptions/pending')
+    return response.data
+  },
+  
+  getRedemptionsHistory: async (filters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.user_id) params.append('user_id', filters.user_id)
+    if (filters.start_date) params.append('start_date', filters.start_date)
+    if (filters.end_date) params.append('end_date', filters.end_date)
+    
+    const response = await apiClient.get(`/rewards/redemptions/history?${params.toString()}`)
+    return response.data
+  },
+  
+  approveRedemption: async (redemptionId) => {
+    const response = await apiClient.post(`/rewards/redemptions/${redemptionId}/approve`)
+    return response.data
+  },
+  
+  rejectRedemption: async (redemptionId, reason) => {
+    const response = await apiClient.post(`/rewards/redemptions/${redemptionId}/reject`, { reason })
+    return response.data
   }
 }
 

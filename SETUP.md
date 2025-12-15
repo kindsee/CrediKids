@@ -369,6 +369,137 @@ curl http://localhost:5001/api/icons
 - Configura SSL/HTTPS con Let's Encrypt (certbot)
 - Ajusta permisos de archivos y carpetas apropiadamente
 
+## 🔄 Actualizar Aplicación en Producción
+
+### Cuando actualices código del repositorio:
+
+**1. Actualizar Backend:**
+```bash
+# En el servidor, navega a la carpeta del backend
+cd /var/www/credikids/backend
+
+# Actualiza el código
+git pull origin main
+
+# Activa el entorno virtual
+source venv/bin/activate
+
+# Instala nuevas dependencias si hay
+pip install -r requirements.txt
+
+# Ejecuta migraciones si las hay
+# python migrate_script.py
+
+# Reinicia el servicio
+sudo systemctl restart credikids-backend
+
+# Verifica que esté corriendo
+sudo systemctl status credikids-backend
+
+# Verifica logs si hay errores
+sudo journalctl -u credikids-backend -f
+```
+
+**2. Actualizar Frontend:**
+```bash
+# En tu máquina local, recompila
+cd frontend
+npm run build
+
+# Sube los archivos compilados al servidor
+# Opción A: Con SCP
+scp -r dist/* usuario@servidor:/var/www/credikids/frontend/dist/
+
+# Opción B: Con rsync (mejor, más rápido)
+rsync -avz --delete dist/ usuario@servidor:/var/www/credikids/frontend/dist/
+
+# En el servidor, ajusta permisos
+sudo chown -R www-data:www-data /var/www/credikids/frontend/dist
+sudo chmod -R 755 /var/www/credikids/frontend/dist
+```
+
+**3. Reiniciar Apache:**
+```bash
+# Recargar configuración de Apache
+sudo systemctl reload apache2
+
+# O reiniciar completamente si es necesario
+sudo systemctl restart apache2
+
+# Verificar que está corriendo
+sudo systemctl status apache2
+
+# Ver logs de errores
+sudo tail -f /var/log/apache2/credikids-error.log
+```
+
+### Verificar que todo funciona:
+
+```bash
+# 1. Verifica que el backend responde
+curl http://localhost:5001/api/icons
+
+# 2. Verifica logs del backend
+sudo journalctl -u credikids-backend -n 50
+
+# 3. Verifica logs de Apache
+sudo tail -f /var/log/apache2/credikids-error.log
+
+# 4. Verifica en el navegador
+# Abre: http://tu-servidor.com
+# Presiona F12 y revisa la consola
+```
+
+### Problemas comunes:
+
+**Error: Backend no responde**
+```bash
+# Verifica que el servicio está corriendo
+sudo systemctl status credikids-backend
+
+# Si no está corriendo, inícialo
+sudo systemctl start credikids-backend
+
+# Revisa los logs para ver el error
+sudo journalctl -u credikids-backend -n 100
+```
+
+**Error: 404 en llamadas API**
+```bash
+# Verifica la configuración del proxy en Apache
+sudo nano /etc/apache2/sites-available/credikids.conf
+
+# Debe tener:
+# ProxyPass /api http://localhost:5001/api
+# ProxyPassReverse /api http://localhost:5001/api
+
+# Después de editar, recarga Apache
+sudo systemctl reload apache2
+```
+
+**Error: Frontend muestra página en blanco**
+```bash
+# Verifica que los archivos existen
+ls -la /var/www/credikids/frontend/dist/
+
+# Verifica permisos
+sudo chown -R www-data:www-data /var/www/credikids/frontend/dist
+sudo chmod -R 755 /var/www/credikids/frontend/dist
+
+# Limpia caché del navegador (Ctrl + Shift + Delete)
+```
+
+**Error: CORS o permisos**
+```bash
+# Verifica que Flask-CORS esté configurado
+cd /var/www/credikids/backend
+grep -n "CORS" app.py
+
+# Debe tener:
+# from flask_cors import CORS
+# CORS(app)
+```
+
 ---
 
 **¿Necesitas ayuda?** Revisa los logs de consola en backend y frontend para más detalles.

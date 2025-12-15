@@ -6,6 +6,7 @@ import CalendarPage from './pages/CalendarPage'
 import TasksPage from './pages/TasksPage'
 import ProposalsPage from './pages/ProposalsPage'
 import RewardsPage from './pages/RewardsPage'
+import RewardsManagementPage from './pages/RewardsManagementPage'
 import UsersPage from './pages/UsersPage'
 import TasksManagementPage from './pages/TasksManagementPage'
 import TaskAssignmentPage from './pages/TaskAssignmentPage'
@@ -72,6 +73,11 @@ function App() {
           <Route path="task-validation" element={
             <AdminRoute>
               <TaskValidationPage />
+            </AdminRoute>
+          } />
+          <Route path="rewards-management" element={
+            <AdminRoute>
+              <RewardsManagementPage />
             </AdminRoute>
           } />
         </Route>

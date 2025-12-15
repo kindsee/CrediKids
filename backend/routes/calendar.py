@@ -125,8 +125,8 @@ def get_user_pending_tasks(user_id):
     pending_assignments = TaskAssignment.query.filter(
         and_(
             TaskAssignment.user_id == user_id,
-            TaskAssignment.is_completed == False,
-            TaskAssignment.is_cancelled == False,
+            TaskAssignment.is_completed.is_(False),
+            TaskAssignment.is_cancelled.is_(False),
             TaskAssignment.assigned_date <= today
         )
     ).order_by(TaskAssignment.assigned_date).all()
@@ -159,7 +159,7 @@ def get_user_cancelled_tasks(user_id):
     cancelled_assignments = TaskAssignment.query.filter(
         and_(
             TaskAssignment.user_id == user_id,
-            TaskAssignment.is_cancelled == True
+            TaskAssignment.is_cancelled.is_(True)
         )
     ).order_by(TaskAssignment.cancelled_at.desc()).limit(limit).all()
     
@@ -190,7 +190,7 @@ def get_user_completed_tasks(user_id):
     completed_assignments = TaskAssignment.query.filter(
         and_(
             TaskAssignment.user_id == user_id,
-            TaskAssignment.is_completed == True
+            TaskAssignment.is_completed.is_(True)
         )
     ).order_by(TaskAssignment.assigned_date.desc()).limit(limit).all()
     

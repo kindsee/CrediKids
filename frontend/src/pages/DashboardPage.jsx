@@ -68,8 +68,8 @@ export default function DashboardPage() {
           ...item,
           type: 'redemption',
           date: item.redeemed_at,
-          credits: -item.cost,
-          description: item.reward?.title || 'Premio canjeado'
+          credits: item.status === 'rejected' ? 0 : -item.credits_spent,
+          description: item.reward?.name || 'Premio canjeado'
         }))
         const bonuses = (history.bonuses || []).map(item => ({
           ...item,
