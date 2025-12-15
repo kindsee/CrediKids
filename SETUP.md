@@ -293,6 +293,83 @@ Ver `README.md` para documentación detallada de:
 - Modelos de base de datos
 - Convenciones de código
 
+## 🚀 Despliegue en Producción
+
+### 1. Compilar Frontend
+```powershell
+cd frontend
+npm run build
+# Los archivos compilados estarán en frontend/dist/
+```
+
+### 2. Configurar Servidor Web
+
+**Para Apache:**
+1. Copia los archivos de `frontend/dist/` a `/var/www/credikids/frontend/dist/`
+2. Usa la configuración de `apache-example.conf` como referencia
+3. Habilita módulos necesarios:
+```bash
+sudo a2enmod proxy proxy_http rewrite
+sudo systemctl restart apache2
+```
+
+**Para Nginx:**
+1. Copia los archivos de `frontend/dist/` a `/var/www/credikids/frontend/dist/`
+2. Usa la configuración de `nginx-example.conf` como referencia
+3. Reinicia Nginx:
+```bash
+sudo systemctl restart nginx
+```
+
+### 3. Configurar Backend en Producción
+```bash
+# Instalar gunicorn para producción
+pip install gunicorn
+
+# Ejecutar backend con gunicorn
+gunicorn -w 4 -b 0.0.0.0:5000 app:app
+```
+
+### 4. Configurar como Servicio (systemd)
+Crea `/etc/systemd/system/credikids-backend.service`:
+```ini
+[Unit]
+Description=CrediKids Backend
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/credikids/backend
+Environment="PATH=/var/www/credikids/backend/venv/bin"
+ExecStart=/var/www/credikids/backend/venv/bin/gunicorn -w 4 -b 127.0.0.1:5000 app:app
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Habilitar e iniciar:
+```bash
+sudo systemctl enable credikids-backend
+sudo systemctl start credikids-backend
+sudo systemctl status credikids-backend
+```
+
+### 5. Verificar Conexiones
+```bash
+# Verificar backend responde
+curl http://localhost:5000/api/icons
+
+# Verificar frontend puede acceder al backend
+# Abre tu-dominio.com en navegador y revisa consola de desarrollador
+```
+
+**⚠️ Importante para Producción:**
+- Cambia `SECRET_KEY` y `JWT_SECRET_KEY` en `.env` a valores aleatorios seguros
+- Configura `FLASK_ENV=production` en `.env`
+- Configura SSL/HTTPS con Let's Encrypt (certbot)
+- Ajusta permisos de archivos y carpetas apropiadamente
+
 ---
 
 **¿Necesitas ayuda?** Revisa los logs de consola en backend y frontend para más detalles.
+
