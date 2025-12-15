@@ -9,6 +9,7 @@ import RewardsPage from './pages/RewardsPage'
 import UsersPage from './pages/UsersPage'
 import TasksManagementPage from './pages/TasksManagementPage'
 import TaskAssignmentPage from './pages/TaskAssignmentPage'
+import TaskValidationPage from './pages/TaskValidationPage'
 import HistoryPage from './pages/HistoryPage'
 import ChangePinPage from './pages/ChangePinPage'
 import Layout from './components/Layout'
@@ -66,6 +67,11 @@ function App() {
           <Route path="task-assignment" element={
             <AdminRoute>
               <TaskAssignmentPage />
+            </AdminRoute>
+          } />
+          <Route path="task-validation" element={
+            <AdminRoute>
+              <TaskValidationPage />
             </AdminRoute>
           } />
         </Route>

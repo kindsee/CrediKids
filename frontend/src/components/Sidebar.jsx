@@ -9,7 +9,8 @@ import {
   History, 
   Users,
   Settings,
-  CalendarClock
+  CalendarClock,
+  CheckSquare
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -29,7 +30,8 @@ export default function Sidebar() {
     navItems.push(
       { to: '/users', icon: Users, label: 'Usuarios' },
       { to: '/tasks-management', icon: Settings, label: 'Gestión Tareas' },
-      { to: '/task-assignment', icon: CalendarClock, label: 'Asignar Tareas' }
+      { to: '/task-assignment', icon: CalendarClock, label: 'Asignar Tareas' },
+      { to: '/task-validation', icon: CheckSquare, label: 'Validar Tareas' }
     )
   }
   

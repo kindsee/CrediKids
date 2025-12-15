@@ -10,6 +10,7 @@ from .task_proposal import TaskProposal, ProposalStatus
 from .reward import Reward
 from .reward_redemption import RewardRedemption
 from .icon import Icon
+from .bonus import Bonus
 
 __all__ = [
     'db',
@@ -24,5 +25,6 @@ __all__ = [
     'ProposalStatus',
     'Reward',
     'RewardRedemption',
-    'Icon'
+    'Icon',
+    'Bonus'
 ]

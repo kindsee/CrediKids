@@ -119,6 +119,26 @@ export const tasksService = {
     return response.data
   },
   
+  resetTaskAssignment: async (assignmentId) => {
+    const response = await apiClient.post(`/tasks/assignments/${assignmentId}/reset`)
+    return response.data
+  },
+  
+  getPendingValidations: async () => {
+    const response = await apiClient.get('/tasks/completions/pending-validation')
+    return response.data
+  },
+  
+  getCancelledAssignments: async () => {
+    const response = await apiClient.get('/tasks/assignments/cancelled')
+    return response.data
+  },
+  
+  assignBonusCredits: async (userId, bonusData) => {
+    const response = await apiClient.post(`/tasks/users/${userId}/bonus`, bonusData)
+    return response.data
+  },
+  
   getProposals: async () => {
     const response = await apiClient.get('/tasks/proposals')
     return response.data

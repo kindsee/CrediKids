@@ -192,7 +192,7 @@ def get_user_history(user_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    from models import TaskCompletion, RewardRedemption
+    from models import TaskCompletion, RewardRedemption, Bonus
     
     # Tareas completadas
     completions = TaskCompletion.query.filter_by(user_id=user_id).order_by(TaskCompletion.completed_at.desc()).all()
@@ -200,8 +200,12 @@ def get_user_history(user_id):
     # Premios canjeados
     redemptions = RewardRedemption.query.filter_by(user_id=user_id).order_by(RewardRedemption.redeemed_at.desc()).all()
     
+    # Bonuses recibidos
+    bonuses = Bonus.query.filter_by(user_id=user_id).order_by(Bonus.created_at.desc()).all()
+    
     return jsonify({
         'user': user.to_dict(),
         'task_completions': [c.to_dict() for c in completions],
-        'reward_redemptions': [r.to_dict() for r in redemptions]
+        'reward_redemptions': [r.to_dict() for r in redemptions],
+        'bonuses': [b.to_dict() for b in bonuses]
     }), 200

@@ -442,7 +442,13 @@ def validate_task(completion_id):
     # Obtener la tarea para calcular créditos
     task = Task.query.get(completion.task_id)
     
-    # Calcular créditos según tipo de tarea
+    # Actualizar completion primero con el score
+    completion.validation_score = score
+    completion.validated_by_id = admin_id
+    completion.validated_at = datetime.utcnow()
+    completion.validation_notes = data.get('validation_notes', '')
+    
+    # Calcular créditos según tipo de tarea DESPUÉS de asignar el score
     credits = 0
     if task.task_type == TaskType.OBLIGATORY:
         # Tareas obligatorias no suman créditos al completarse
@@ -451,11 +457,6 @@ def validate_task(completion_id):
         # Tareas especiales y propuestas sí suman créditos
         credits = completion.calculate_credits(task.base_value)
     
-    # Actualizar completion
-    completion.validation_score = score
-    completion.validated_by_id = admin_id
-    completion.validated_at = datetime.utcnow()
-    completion.validation_notes = data.get('validation_notes', '')
     completion.credits_awarded = credits
     
     # Actualizar assignment
@@ -471,6 +472,124 @@ def validate_task(completion_id):
     return jsonify({
         'completion': completion.to_dict(),
         'user_score': user.score
+    }), 200
+
+@tasks_bp.route('/assignments/<int:assignment_id>/reset', methods=['POST'])
+@admin_required
+def reset_task_assignment(assignment_id):
+    """
+    Resetear una tarea (completada o cancelada) a su estado original (pendiente)
+    """
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    # Si está completada, eliminar el completion y revertir créditos
+    if assignment.is_completed:
+        completion = TaskCompletion.query.filter_by(assignment_id=assignment_id).first()
+        if completion:
+            # Si fue validada, revertir créditos
+            if completion.credits_awarded and completion.credits_awarded > 0:
+                user = User.query.get(assignment.user_id)
+                user.subtract_credits(completion.credits_awarded)
+            
+            db.session.delete(completion)
+        
+        assignment.is_completed = False
+        assignment.is_validated = False
+    
+    # Si está cancelada, revertir penalización si era obligatoria
+    if assignment.is_cancelled:
+        task = Task.query.get(assignment.task_id)
+        if task.task_type == 'obligatory':
+            user = User.query.get(assignment.user_id)
+            user.add_credits(task.base_value)  # Devolver los créditos restados
+        
+        assignment.is_cancelled = False
+        assignment.cancelled_at = None
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Task reset successfully',
+        'assignment': assignment.to_dict()
+    }), 200
+
+@tasks_bp.route('/completions/pending-validation', methods=['GET'])
+@admin_required
+def get_pending_validations():
+    """
+    Obtener todas las tareas completadas pendientes de validación
+    """
+    completions = TaskCompletion.query.filter(
+        TaskCompletion.validation_score == None
+    ).order_by(TaskCompletion.completed_at.desc()).all()
+    
+    return jsonify({
+        'count': len(completions),
+        'completions': [c.to_dict() for c in completions]
+    }), 200
+
+@tasks_bp.route('/assignments/cancelled', methods=['GET'])
+@admin_required
+def get_cancelled_assignments():
+    """
+    Obtener todas las tareas canceladas (para que admin las revise)
+    """
+    assignments = TaskAssignment.query.filter(
+        TaskAssignment.is_cancelled == True
+    ).order_by(TaskAssignment.cancelled_at.desc()).all()
+    
+    return jsonify({
+        'count': len(assignments),
+        'assignments': [a.to_dict() for a in assignments]
+    }), 200
+
+@tasks_bp.route('/users/<int:user_id>/bonus', methods=['POST'])
+@admin_required
+def assign_bonus_credits(user_id):
+    """
+    Asignar créditos bonus a un usuario (premio especial)
+    Body: {
+        "credits": 50,
+        "description": "Premio por buen comportamiento" (opcional)
+    }
+    """
+    data = request.get_json()
+    admin_id = int(get_jwt_identity())
+    
+    if 'credits' not in data:
+        return jsonify({'error': 'credits is required'}), 400
+    
+    credits = int(data['credits'])
+    if credits <= 0:
+        return jsonify({'error': 'credits must be positive'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    description = data.get('description', 'Créditos bonus del administrador')
+    
+    # Crear registro de bonus
+    from models import Bonus
+    bonus = Bonus(
+        user_id=user_id,
+        credits=credits,
+        description=description,
+        assigned_by_id=admin_id
+    )
+    
+    # Asignar créditos al usuario
+    user.add_credits(credits)
+    
+    db.session.add(bonus)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Bonus credits assigned successfully',
+        'user': user.to_dict(),
+        'bonus': bonus.to_dict()
     }), 200
 
 @tasks_bp.route('/proposals', methods=['GET'])

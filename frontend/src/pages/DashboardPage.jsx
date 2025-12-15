@@ -56,7 +56,7 @@ export default function DashboardPage() {
     try {
       if (type === 'credits') {
         const history = await usersService.getUserHistory(user.id)
-        // Combinar completions y redemptions en una sola lista
+        // Combinar completions, redemptions y bonuses en una sola lista
         const completions = (history.task_completions || []).map(item => ({
           ...item,
           type: 'completion',
@@ -71,8 +71,15 @@ export default function DashboardPage() {
           credits: -item.cost,
           description: item.reward?.title || 'Premio canjeado'
         }))
+        const bonuses = (history.bonuses || []).map(item => ({
+          ...item,
+          type: 'bonus',
+          date: item.created_at,
+          credits: item.credits,
+          description: item.description || 'Bonus del administrador'
+        }))
         // Combinar y ordenar por fecha
-        const combined = [...completions, ...redemptions].sort((a, b) => 
+        const combined = [...completions, ...redemptions, ...bonuses].sort((a, b) => 
           new Date(b.date) - new Date(a.date)
         )
         setModalData(combined)
@@ -224,7 +231,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Bienvenido, {user?.nick}!</p>
+        <p className="text-gray-600 mt-1">Bienvenid@, {user?.nick}!</p>
       </div>
       
       {success && (
@@ -294,7 +301,8 @@ export default function DashboardPage() {
                           <div className="flex-1">
                             <p className="font-semibold text-sm md:text-base">
                               {item.type === 'completion' ? '✅ Tarea completada' : 
-                               item.type === 'redemption' ? '🎁 Premio canjeado' : 
+                               item.type === 'redemption' ? '🎁 Premio canjeado' :
+                               item.type === 'bonus' ? '⭐ Bonus especial' : 
                                '📋 Actividad'}
                             </p>
                             <p className="text-xs md:text-sm text-gray-600 mt-1">
