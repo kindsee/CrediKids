@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, User, Task, TaskAssignment, TaskCompletion, TaskProposal, TaskType, TaskFrequency, ProposalStatus
+from models import db, User, Task, TaskAssignment, TaskCompletion, TaskProposal, TaskType, TaskFrequency, ProposalStatus, Bonus
 from datetime import datetime, date, timedelta
 from sqlalchemy import and_
 from calendar import monthrange
@@ -522,7 +522,7 @@ def get_pending_validations():
     Obtener todas las tareas completadas pendientes de validación
     """
     completions = TaskCompletion.query.filter(
-        TaskCompletion.validation_score == None
+        TaskCompletion.validation_score.is_(None)
     ).order_by(TaskCompletion.completed_at.desc()).all()
     
     return jsonify({
@@ -537,7 +537,7 @@ def get_cancelled_assignments():
     Obtener todas las tareas canceladas (para que admin las revise)
     """
     assignments = TaskAssignment.query.filter(
-        TaskAssignment.is_cancelled == True
+        TaskAssignment.is_cancelled.is_(True)
     ).order_by(TaskAssignment.cancelled_at.desc()).all()
     
     return jsonify({
@@ -572,7 +572,6 @@ def assign_bonus_credits(user_id):
     description = data.get('description', 'Créditos bonus del administrador')
     
     # Crear registro de bonus
-    from models import Bonus
     bonus = Bonus(
         user_id=user_id,
         credits=credits,
