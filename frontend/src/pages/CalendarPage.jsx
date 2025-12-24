@@ -27,7 +27,7 @@ export default function CalendarPage() {
 
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
   useEffect(() => {
     if (isAdmin) {
@@ -107,7 +107,9 @@ export default function CalendarPage() {
     const lastDay = new Date(year, month + 1, 0)
     
     const days = []
-    const startDayOfWeek = firstDay.getDay()
+    // Convertir domingo (0) a 7, y restar 1 para que lunes sea 0
+    let startDayOfWeek = firstDay.getDay()
+    startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1
     
     // Días del mes anterior (para completar la primera semana)
     const prevMonthLastDay = new Date(year, month, 0).getDate()

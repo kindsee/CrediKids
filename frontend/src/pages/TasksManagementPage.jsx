@@ -649,7 +649,7 @@ export default function TasksManagementPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {new Date(assignment.assigned_date).toLocaleDateString('es-ES')}
+                          {assignment.assigned_date.split('T')[0].split('-').reverse().join('/')}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
