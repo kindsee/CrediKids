@@ -5,8 +5,9 @@ import { CheckCircle, XCircle, RotateCcw, Star, User as UserIcon, AlertTriangle 
 
 export default function TaskValidationPage() {
   const { user } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('pending') // pending, cancelled, bonus, penalty
+  const [activeTab, setActiveTab] = useState('pending') // pending, pending-assignments, cancelled, bonus, penalty
   const [pendingTasks, setPendingTasks] = useState([])
+  const [pendingAssignments, setPendingAssignments] = useState([])
   const [cancelledTasks, setCancelledTasks] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -17,9 +18,11 @@ export default function TaskValidationPage() {
   const [showValidateModal, setShowValidateModal] = useState(false)
   const [showBonusModal, setShowBonusModal] = useState(false)
   const [showPenaltyModal, setShowPenaltyModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [validationScore, setValidationScore] = useState(3)
   const [validationNotes, setValidationNotes] = useState('')
+  const [cancelNotes, setCancelNotes] = useState('')
   const [bonusCredits, setBonusCredits] = useState('')
   const [bonusDescription, setBonusDescription] = useState('')
   const [penaltyCredits, setPenaltyCredits] = useState('')
@@ -37,6 +40,9 @@ export default function TaskValidationPage() {
       if (activeTab === 'pending') {
         const data = await tasksService.getPendingValidations()
         setPendingTasks(data.completions || [])
+      } else if (activeTab === 'pending-assignments') {
+        const data = await tasksService.getPendingAssignments()
+        setPendingAssignments(data.assignments || [])
       } else if (activeTab === 'cancelled') {
         const data = await tasksService.getCancelledAssignments()
         setCancelledTasks(data.assignments || [])
@@ -93,6 +99,25 @@ export default function TaskValidationPage() {
     } catch (error) {
       console.error('Error resetting task:', error)
       setError(error.response?.data?.error || 'Error al resetear la tarea')
+    }
+  }
+  
+  const handleCancelTask = async () => {
+    if (!selectedItem) return
+    
+    try {
+      await tasksService.cancelTaskByAdmin(selectedItem.id, cancelNotes)
+      
+      setSuccess('¡Tarea cancelada correctamente!')
+      setShowCancelModal(false)
+      setSelectedItem(null)
+      setCancelNotes('')
+      loadData()
+      
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (error) {
+      console.error('Error cancelling task:', error)
+      setError(error.response?.data?.error || 'Error al cancelar la tarea')
     }
   }
   
@@ -208,6 +233,16 @@ export default function TaskValidationPage() {
           Pendientes de Validar ({pendingTasks.length})
         </button>
         <button
+          onClick={() => setActiveTab('pending-assignments')}
+          className={`px-4 py-2 text-sm md:text-base font-medium border-b-2 transition-colors ${
+            activeTab === 'pending-assignments'
+              ? 'border-yellow-500 text-yellow-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Tareas Pendientes ({pendingAssignments.length})
+        </button>
+        <button
           onClick={() => setActiveTab('cancelled')}
           className={`px-4 py-2 text-sm md:text-base font-medium border-b-2 transition-colors ${
             activeTab === 'cancelled'
@@ -277,6 +312,46 @@ export default function TaskValidationPage() {
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap"
                   >
                     Validar
+                  </button>
+                </div>
+              </div>
+            ))
+          )
+        ) : activeTab === 'pending-assignments' ? (
+          pendingAssignments.length === 0 ? (
+            <p className="text-center text-gray-500">No hay tareas pendientes sin completar</p>
+          ) : (
+            pendingAssignments.map((assignment) => (
+              <div key={assignment.id} className="card">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs px-2 py-1 rounded ${getTaskTypeColor(assignment.task?.task_type)}`}>
+                        {assignment.task?.task_type}
+                      </span>
+                      <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                        Pendiente
+                      </span>
+                      <span className="text-xs px-2 py-1 bg-gray-100 rounded">
+                        {assignment.task?.base_value} créditos
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-base md:text-lg">{assignment.task?.title}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{assignment.task?.description}</p>
+                    <div className="mt-2 text-sm text-gray-500">
+                      <p><strong>Usuario:</strong> {assignment.user?.nick}</p>
+                      <p><strong>Asignada:</strong> {new Date(assignment.assigned_date).toLocaleDateString('es-ES')}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedItem(assignment)
+                      setShowCancelModal(true)
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <XCircle size={18} />
+                    Cancelar
                   </button>
                 </div>
               </div>
@@ -579,6 +654,68 @@ export default function TaskValidationPage() {
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Penalizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Cancel Task Modal */}
+      {showCancelModal && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-4 md:p-6">
+            <h3 className="text-lg md:text-xl font-bold mb-4 text-red-600 flex items-center gap-2">
+              <XCircle size={24} />
+              Cancelar Tarea
+            </h3>
+            
+            <div className="mb-4">
+              <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+                <p className="text-sm text-gray-700"><strong>Tarea:</strong> {selectedItem.task?.title}</p>
+                <p className="text-sm text-gray-700"><strong>Usuario:</strong> {selectedItem.user?.nick}</p>
+                <p className="text-sm text-gray-700"><strong>Fecha:</strong> {new Date(selectedItem.assigned_date).toLocaleDateString('es-ES')}</p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo de cancelación (opcional)
+              </label>
+              <textarea
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                placeholder="Ej: Tarea asignada por error, cambio de circunstancias..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-sm"
+                rows="3"
+              />
+            </div>
+            
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-300 rounded text-sm text-gray-700">
+              <p><strong>Nota:</strong> Al cancelar esta tarea como administrador, el usuario no recibirá ninguna penalización.</p>
+            </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+                {error}
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelModal(false)
+                  setSelectedItem(null)
+                  setCancelNotes('')
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleCancelTask}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Cancelar Tarea
               </button>
             </div>
           </div>

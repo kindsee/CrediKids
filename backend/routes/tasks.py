@@ -335,14 +335,15 @@ def complete_task(assignment_id):
     }
     """
     user_id = int(get_jwt_identity())
+    current_user = User.query.get(user_id)
     data = request.get_json() or {}
     
     assignment = TaskAssignment.query.get(assignment_id)
     if not assignment:
         return jsonify({'error': 'Assignment not found'}), 404
     
-    # Verificar que el usuario es el asignado
-    if assignment.user_id != user_id:
+    # Verificar que el usuario es el asignado o es admin
+    if assignment.user_id != user_id and current_user.role != 'admin':
         return jsonify({'error': 'Access denied'}), 403
     
     if assignment.is_completed:
@@ -375,14 +376,15 @@ def cancel_task(assignment_id):
     }
     """
     user_id = int(get_jwt_identity())
+    current_user = User.query.get(user_id)
     data = request.get_json() or {}
     
     assignment = TaskAssignment.query.get(assignment_id)
     if not assignment:
         return jsonify({'error': 'Assignment not found'}), 404
     
-    # Verificar que el usuario es el asignado
-    if assignment.user_id != user_id:
+    # Verificar que el usuario es el asignado o es admin
+    if assignment.user_id != user_id and current_user.role != 'admin':
         return jsonify({'error': 'Access denied'}), 403
     
     if assignment.is_completed:
@@ -545,6 +547,73 @@ def get_cancelled_assignments():
         'assignments': [a.to_dict() for a in assignments]
     }), 200
 
+@tasks_bp.route('/assignments/pending', methods=['GET'])
+@admin_required
+def get_pending_assignments():
+    """
+    Obtener todas las tareas pendientes (no completadas ni canceladas)
+    Query params opcionales:
+    - user_id: Filtrar por usuario específico
+    - date: Filtrar por fecha específica (YYYY-MM-DD)
+    """
+    user_id = request.args.get('user_id', type=int)
+    date_filter = request.args.get('date')
+    
+    query = TaskAssignment.query.filter(
+        TaskAssignment.is_completed.is_(False),
+        TaskAssignment.is_cancelled.is_(False)
+    )
+    
+    if user_id:
+        query = query.filter(TaskAssignment.user_id == user_id)
+    
+    if date_filter:
+        filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
+        query = query.filter(TaskAssignment.assigned_date == filter_date)
+    
+    assignments = query.order_by(TaskAssignment.assigned_date.desc()).all()
+    
+    return jsonify({
+        'count': len(assignments),
+        'assignments': [a.to_dict() for a in assignments]
+    }), 200
+
+@tasks_bp.route('/assignments/<int:assignment_id>/admin-cancel', methods=['POST'])
+@admin_required
+def admin_cancel_task(assignment_id):
+    """
+    Cancelar una tarea como administrador (sin penalización al usuario)
+    Body (opcional): {
+        "admin_notes": "Motivo de cancelación por admin..."
+    }
+    """
+    admin_id = int(get_jwt_identity())
+    data = request.get_json() or {}
+    
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    if assignment.is_completed:
+        return jsonify({'error': 'Cannot cancel a completed task'}), 400
+        
+    if assignment.is_cancelled:
+        return jsonify({'error': 'Task already cancelled'}), 400
+    
+    # Marcar como cancelada (sin penalización)
+    assignment.is_cancelled = True
+    assignment.cancelled_at = datetime.utcnow()
+    
+    # Registrar en la base de datos que fue cancelada por admin
+    # (podrías agregar un campo cancelled_by_admin si lo necesitas)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Task cancelled successfully by admin',
+        'assignment': assignment.to_dict()
+    }), 200
+
 @tasks_bp.route('/proposals', methods=['GET'])
 @jwt_required()
 def get_proposals():
@@ -655,3 +724,102 @@ def review_proposal(proposal_id):
     db.session.commit()
     
     return jsonify(proposal.to_dict()), 200
+
+@tasks_bp.route('/assignments', methods=['GET'])
+@admin_required
+def get_all_assignments():
+    """
+    Obtener todas las asignaciones con filtros opcionales
+    Query params:
+        - user_id: Filtrar por usuario
+        - task_id: Filtrar por tarea
+        - start_date: Fecha inicio (YYYY-MM-DD)
+        - end_date: Fecha fin (YYYY-MM-DD)
+        - status: completed, cancelled, pending
+    """
+    user_id = request.args.get('user_id', type=int)
+    task_id = request.args.get('task_id', type=int)
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    status = request.args.get('status')
+    
+    query = TaskAssignment.query
+    
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    
+    if task_id:
+        query = query.filter_by(task_id=task_id)
+    
+    if start_date:
+        start = datetime.strptime(start_date, '%Y-%m-%d').date()
+        query = query.filter(TaskAssignment.assigned_date >= start)
+    
+    if end_date:
+        end = datetime.strptime(end_date, '%Y-%m-%d').date()
+        query = query.filter(TaskAssignment.assigned_date <= end)
+    
+    if status:
+        if status == 'completed':
+            query = query.filter_by(is_completed=True)
+        elif status == 'cancelled':
+            query = query.filter_by(is_cancelled=True)
+        elif status == 'pending':
+            query = query.filter_by(is_completed=False, is_cancelled=False)
+    
+    assignments = query.order_by(TaskAssignment.assigned_date.desc()).all()
+    
+    return jsonify([a.to_dict() for a in assignments]), 200
+
+@tasks_bp.route('/assignments/<int:assignment_id>', methods=['DELETE'])
+@admin_required
+def delete_assignment(assignment_id):
+    """
+    Eliminar una asignación de tarea
+    Solo se pueden eliminar asignaciones que no estén completadas
+    """
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    if assignment.is_completed:
+        return jsonify({'error': 'Cannot delete completed assignment'}), 400
+    
+    # Si tiene una completion asociada (aunque no esté marcada como completada), eliminarla
+    completion = TaskCompletion.query.filter_by(assignment_id=assignment_id).first()
+    if completion:
+        db.session.delete(completion)
+    
+    db.session.delete(assignment)
+    db.session.commit()
+    
+    return jsonify({'message': 'Assignment deleted successfully'}), 200
+
+@tasks_bp.route('/assignments/<int:assignment_id>', methods=['PUT'])
+@admin_required
+def update_assignment(assignment_id):
+    """
+    Actualizar fecha de una asignación
+    Body: {
+        "assigned_date": "2025-12-25"
+    }
+    """
+    data = request.get_json()
+    
+    assignment = TaskAssignment.query.get(assignment_id)
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+    
+    if assignment.is_completed:
+        return jsonify({'error': 'Cannot update completed assignment'}), 400
+    
+    if 'assigned_date' in data:
+        try:
+            new_date = datetime.strptime(data['assigned_date'], '%Y-%m-%d').date()
+            assignment.assigned_date = new_date
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    
+    db.session.commit()
+    
+    return jsonify(assignment.to_dict()), 200

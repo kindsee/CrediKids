@@ -151,6 +151,22 @@ export const tasksService = {
     return response.data
   },
   
+  getPendingAssignments: async (filters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.user_id) params.append('user_id', filters.user_id)
+    if (filters.date) params.append('date', filters.date)
+    
+    const response = await apiClient.get(`/tasks/assignments/pending?${params.toString()}`)
+    return response.data
+  },
+  
+  cancelTaskByAdmin: async (assignmentId, adminNotes = '') => {
+    const response = await apiClient.post(`/tasks/assignments/${assignmentId}/admin-cancel`, {
+      admin_notes: adminNotes
+    })
+    return response.data
+  },
+  
   assignBonusCredits: async (userId, bonusData) => {
     const response = await apiClient.post(`/users/${userId}/bonus`, bonusData)
     return response.data
@@ -168,6 +184,29 @@ export const tasksService = {
   
   reviewProposal: async (proposalId, reviewData) => {
     const response = await apiClient.post(`/tasks/proposals/${proposalId}/review`, reviewData)
+    return response.data
+  },
+
+  // Gestión de asignaciones
+  getAllAssignments: async (filters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.user_id) params.append('user_id', filters.user_id)
+    if (filters.task_id) params.append('task_id', filters.task_id)
+    if (filters.start_date) params.append('start_date', filters.start_date)
+    if (filters.end_date) params.append('end_date', filters.end_date)
+    if (filters.status) params.append('status', filters.status)
+    
+    const response = await apiClient.get(`/tasks/assignments?${params.toString()}`)
+    return response.data
+  },
+
+  updateAssignment: async (assignmentId, assignmentData) => {
+    const response = await apiClient.put(`/tasks/assignments/${assignmentId}`, assignmentData)
+    return response.data
+  },
+
+  deleteAssignment: async (assignmentId) => {
+    const response = await apiClient.delete(`/tasks/assignments/${assignmentId}`)
     return response.data
   }
 }

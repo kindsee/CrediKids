@@ -426,22 +426,20 @@ export default function DashboardPage() {
                               </span>
                             </div>
                           </div>
-                          {!isAdmin && (
-                            <div className="flex flex-col gap-2 flex-shrink-0">
-                              <button
-                                onClick={() => openCompleteModal(task)}
-                                className="px-3 py-1.5 bg-green-600 text-white text-xs md:text-sm rounded-lg hover:bg-green-700 whitespace-nowrap"
-                              >
-                                Completar
-                              </button>
-                              <button
-                                onClick={() => openCancelModal(task)}
-                                className="px-3 py-1.5 bg-red-600 text-white text-xs md:text-sm rounded-lg hover:bg-red-700 whitespace-nowrap"
-                              >
-                                No hacer
-                              </button>
-                            </div>
-                          )}
+                          <div className="flex flex-col gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => openCompleteModal(task)}
+                              className="px-3 py-1.5 bg-green-600 text-white text-xs md:text-sm rounded-lg hover:bg-green-700 whitespace-nowrap"
+                            >
+                              Completar
+                            </button>
+                            <button
+                              onClick={() => openCancelModal(task)}
+                              className="px-3 py-1.5 bg-red-600 text-white text-xs md:text-sm rounded-lg hover:bg-red-700 whitespace-nowrap"
+                            >
+                              No hacer
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))

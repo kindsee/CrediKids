@@ -1,18 +1,30 @@
 import { useState, useEffect } from 'react'
-import { List, Plus, Edit2, Power, CheckCircle, XCircle, Clock, Save, X } from 'lucide-react'
+import { List, Plus, Edit2, Power, CheckCircle, XCircle, Clock, Save, X, Calendar, Trash2 } from 'lucide-react'
 import { tasksService, usersService } from '../services'
 
 export default function TasksManagementPage() {
   const [tasks, setTasks] = useState([])
   const [proposals, setProposals] = useState([])
+  const [assignments, setAssignments] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modalError, setModalError] = useState('')
-  const [activeTab, setActiveTab] = useState('tasks') // 'tasks' | 'proposals'
+  const [activeTab, setActiveTab] = useState('tasks') // 'tasks' | 'proposals' | 'assignments'
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [reviewingProposal, setReviewingProposal] = useState(null)
+  const [editingAssignment, setEditingAssignment] = useState(null)
+  const [selectedAssignments, setSelectedAssignments] = useState([])
+  
+  // Filtros para asignaciones
+  const [assignmentFilters, setAssignmentFilters] = useState({
+    user_id: '',
+    task_id: '',
+    status: 'pending',
+    start_date: '',
+    end_date: ''
+  })
 
   const [formData, setFormData] = useState({
     title: '',
@@ -33,6 +45,12 @@ export default function TasksManagementPage() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (activeTab === 'assignments') {
+      loadAssignments()
+    }
+  }, [activeTab, assignmentFilters])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -46,6 +64,27 @@ export default function TasksManagementPage() {
       setUsers(usersData.filter(u => u.is_active)) // Solo usuarios activos para asignar
     } catch (err) {
       setError('Error al cargar datos')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadAssignments = async () => {
+    try {
+      setLoading(true)
+      setSelectedAssignments([]) // Limpiar selección al cargar
+      const filters = {}
+      if (assignmentFilters.user_id) filters.user_id = assignmentFilters.user_id
+      if (assignmentFilters.task_id) filters.task_id = assignmentFilters.task_id
+      if (assignmentFilters.status) filters.status = assignmentFilters.status
+      if (assignmentFilters.start_date) filters.start_date = assignmentFilters.start_date
+      if (assignmentFilters.end_date) filters.end_date = assignmentFilters.end_date
+      
+      const data = await tasksService.getAllAssignments(filters)
+      setAssignments(data)
+    } catch (err) {
+      setError('Error al cargar asignaciones')
       console.error(err)
     } finally {
       setLoading(false)
@@ -127,6 +166,93 @@ export default function TasksManagementPage() {
       final_description: proposal.description,
       final_reward: proposal.suggested_reward
     })
+  }
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (!confirm('¿Estás seguro de eliminar esta asignación?')) return
+
+    try {
+      await tasksService.deleteAssignment(assignmentId)
+      loadAssignments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar asignación')
+    }
+  }
+
+  const handleDeleteSelectedAssignments = async () => {
+    if (selectedAssignments.length === 0) {
+      setError('No hay asignaciones seleccionadas')
+      return
+    }
+
+    const count = selectedAssignments.length
+    if (!confirm(`¿Estás seguro de eliminar ${count} asignación(es)?`)) return
+
+    try {
+      setLoading(true)
+      // Eliminar todas las asignaciones seleccionadas
+      await Promise.all(
+        selectedAssignments.map(id => tasksService.deleteAssignment(id))
+      )
+      setSelectedAssignments([])
+      loadAssignments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar asignaciones')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleToggleAssignment = (assignmentId) => {
+    setSelectedAssignments(prev => {
+      if (prev.includes(assignmentId)) {
+        return prev.filter(id => id !== assignmentId)
+      } else {
+        return [...prev, assignmentId]
+      }
+    })
+  }
+
+  const handleToggleAll = () => {
+    // Solo seleccionar asignaciones no completadas
+    const selectableAssignments = assignments.filter(a => !a.is_completed)
+    if (selectedAssignments.length === selectableAssignments.length) {
+      setSelectedAssignments([])
+    } else {
+      setSelectedAssignments(selectableAssignments.map(a => a.id))
+    }
+  }
+
+  const handleUpdateAssignmentDate = async (assignmentId, newDate) => {
+    try {
+      await tasksService.updateAssignment(assignmentId, {
+        assigned_date: newDate
+      })
+      loadAssignments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al actualizar fecha')
+    }
+  }
+
+  const openEditAssignmentModal = (assignment) => {
+    setEditingAssignment(assignment)
+  }
+
+  const closeEditAssignmentModal = () => {
+    setEditingAssignment(null)
+  }
+
+  const handleSaveAssignmentDate = async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const newDate = formData.get('assigned_date')
+    
+    try {
+      await handleUpdateAssignmentDate(editingAssignment.id, newDate)
+      closeEditAssignmentModal()
+    } catch (err) {
+      setModalError(err.response?.data?.error || 'Error al guardar')
+    }
   }
 
   const closeModals = () => {
@@ -249,6 +375,17 @@ export default function TasksManagementPage() {
             <Clock className="inline mr-2" size={20} />
             Propuestas Pendientes ({proposals.filter(p => p.status === 'pending').length})
           </button>
+          <button
+            onClick={() => setActiveTab('assignments')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'assignments'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Calendar className="inline mr-2" size={20} />
+            Asignaciones ({assignments.length})
+          </button>
         </nav>
       </div>
 
@@ -362,6 +499,207 @@ export default function TasksManagementPage() {
                   </div>
                 </div>
               ))
+          )}
+        </div>
+      )}
+
+      {/* Asignaciones Tab */}
+      {activeTab === 'assignments' && (
+        <div className="space-y-4">
+          {/* Filtros */}
+          <div className="card">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Usuario</label>
+                <select
+                  value={assignmentFilters.user_id}
+                  onChange={(e) => setAssignmentFilters({ ...assignmentFilters, user_id: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Todos los usuarios</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.figure} {user.nick}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tarea</label>
+                <select
+                  value={assignmentFilters.task_id}
+                  onChange={(e) => setAssignmentFilters({ ...assignmentFilters, task_id: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Todas las tareas</option>
+                  {tasks.filter(t => t.status === 'active').map(task => (
+                    <option key={task.id} value={task.id}>
+                      {task.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+                <select
+                  value={assignmentFilters.status}
+                  onChange={(e) => setAssignmentFilters({ ...assignmentFilters, status: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Todos</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="completed">Completadas</option>
+                  <option value="cancelled">Canceladas</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha inicio</label>
+                <input
+                  type="date"
+                  value={assignmentFilters.start_date}
+                  onChange={(e) => setAssignmentFilters({ ...assignmentFilters, start_date: e.target.value })}
+                  className="input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha fin</label>
+                <input
+                  type="date"
+                  value={assignmentFilters.end_date}
+                  onChange={(e) => setAssignmentFilters({ ...assignmentFilters, end_date: e.target.value })}
+                  className="input"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Botón para eliminar seleccionados */}
+          {selectedAssignments.length > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedAssignments.length} asignación(es) seleccionada(s)
+              </span>
+              <button
+                onClick={handleDeleteSelectedAssignments}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                <Trash2 size={18} />
+                Eliminar seleccionadas
+              </button>
+            </div>
+          )}
+
+          {/* Lista de asignaciones */}
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            </div>
+          ) : assignments.length === 0 ? (
+            <div className="card text-center py-12">
+              <Calendar size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500">No se encontraron asignaciones</p>
+            </div>
+          ) : (
+            <div className="card overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignments.length === assignments.filter(a => !a.is_completed).length && assignments.filter(a => !a.is_completed).length > 0}
+                        onChange={handleToggleAll}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarea</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Créditos</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {assignments.map(assignment => (
+                    <tr key={assignment.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        {!assignment.is_completed && (
+                          <input
+                            type="checkbox"
+                            checked={selectedAssignments.includes(assignment.id)}
+                            onChange={() => handleToggleAssignment(assignment.id)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">{assignment.user?.figure}</span>
+                          <span className="text-sm font-medium text-gray-900">{assignment.user?.nick}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{assignment.task?.title}</div>
+                        <div className="text-xs text-gray-500">{assignment.task?.description}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {new Date(assignment.assigned_date).toLocaleDateString('es-ES')}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {assignment.is_completed ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 flex items-center gap-1 w-fit">
+                            <CheckCircle size={14} />
+                            Completada
+                          </span>
+                        ) : assignment.is_cancelled ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center gap-1 w-fit">
+                            <XCircle size={14} />
+                            Cancelada
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1 w-fit">
+                            <Clock size={14} />
+                            Pendiente
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-gray-900">
+                          {assignment.task?.base_value}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {!assignment.is_completed && (
+                          <>
+                            <button
+                              onClick={() => openEditAssignmentModal(assignment)}
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                              title="Editar fecha"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAssignment(assignment.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Eliminar asignación"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -678,6 +1016,58 @@ export default function TasksManagementPage() {
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Asignación */}
+      {editingAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Editar Fecha de Asignación</h3>
+              <button onClick={closeEditAssignmentModal} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+
+            {modalError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                {modalError}
+              </div>
+            )}
+
+            <div className="mb-4 p-4 bg-gray-50 rounded">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{editingAssignment.user?.figure}</span>
+                <span className="font-medium">{editingAssignment.user?.nick}</span>
+              </div>
+              <div className="text-sm font-medium">{editingAssignment.task?.title}</div>
+              <div className="text-xs text-gray-500">{editingAssignment.task?.description}</div>
+            </div>
+
+            <form onSubmit={handleSaveAssignmentDate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nueva Fecha</label>
+                <input
+                  type="date"
+                  name="assigned_date"
+                  defaultValue={editingAssignment.assigned_date}
+                  className="input"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button type="submit" className="flex-1 btn-primary flex items-center justify-center gap-2">
+                  <Save size={18} />
+                  Guardar
+                </button>
+                <button type="button" onClick={closeEditAssignmentModal} className="btn-secondary">
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
