@@ -464,12 +464,8 @@ def validate_task(completion_id):
     user = User.query.get(completion.user_id)
     admin = User.query.get(admin_id)
     
-    # Los créditos se SUMAN al ADMINISTRADOR que valida
-    admin.add_credits(credits)
-    
-    # Si es tarea OBLIGATORIA: se RESTA al usuario
-    if task.task_type == TaskType.OBLIGATORY:
-        user.subtract_credits(credits)
+    # Los créditos se SUMAN al USUARIO que completó la tarea
+    user.add_credits(credits)
     
     db.session.commit()
     
@@ -493,18 +489,12 @@ def reset_task_assignment(assignment_id):
     if assignment.is_completed:
         completion = TaskCompletion.query.filter_by(assignment_id=assignment_id).first()
         if completion:
-            # Si fue validada, revertir créditos (del admin y usuario)
+            # Si fue validada, revertir créditos del usuario que completó la tarea
             if completion.credits_awarded and completion.credits_awarded > 0:
-                # Restar al admin que validó
-                admin = User.query.get(completion.validated_by_id)
-                if admin:
-                    admin.subtract_credits(completion.credits_awarded)
-                
-                # Si era obligatoria, devolver los créditos al usuario
-                task = Task.query.get(assignment.task_id)
-                if task.task_type == TaskType.OBLIGATORY:
-                    user = User.query.get(assignment.user_id)
-                    user.add_credits(completion.credits_awarded)
+                # Restar del usuario que completó la tarea
+                user = User.query.get(assignment.user_id)
+                if user:
+                    user.subtract_credits(completion.credits_awarded)
             
             db.session.delete(completion)
         

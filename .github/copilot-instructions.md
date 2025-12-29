@@ -33,22 +33,22 @@ frontend/
 ### Task Types & Scoring Logic
 1. **Obligatory Tasks** (`task_type='obligatory'`): 
    - Created only by admins
-   - Award credits to ADMIN based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
-   - SUBTRACT credits from USER (penalty for obligatory tasks)
-   - Cancelling applies penalty to user, no one gains credits
+   - Award credits to USER based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
+   - When cancelled by user, SUBTRACT credits from USER (penalty)
+   - Admin can cancel without penalty to user
 
 2. **Special Tasks** (`task_type='special'`):
    - Created by admins
-   - Award credits to ADMIN based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
-   - User is NOT penalized
+   - Award credits to USER based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
+   - No penalties apply
 
 3. **Proposed Tasks** (`task_type='proposed'`):
    - Submitted by users via `TaskProposal` model
    - Require admin review (approve/reject/modify)
    - Upon approval, converted to regular `Task` with `task_type='proposed'`
-   - Award credits to ADMIN when validated
+   - Award credits to USER when validated
 
-**Key Rule**: Credits are awarded to the ADMIN who validates. Obligatory tasks deduct credits from the user. Cancelled obligatory tasks also penalize the user.
+**Key Rule**: Credits are always awarded to the USER who completed the task. Admin only validates. Obligatory tasks deduct credits from user only when cancelled by the user themselves. Admin can cancel tasks without penalizing the user.
 
 ### Task Assignment Flow
 ```

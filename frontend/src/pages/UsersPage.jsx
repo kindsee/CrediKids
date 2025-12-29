@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users as UsersIcon, UserPlus, Edit2, Power, Save, X } from 'lucide-react'
+import { Users as UsersIcon, UserPlus, Edit2, Power, Save, X, History } from 'lucide-react'
 import { usersService, iconsService } from '../services'
 
 export default function UsersPage() {
@@ -10,6 +10,9 @@ export default function UsersPage() {
   const [modalError, setModalError] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [selectedUserHistory, setSelectedUserHistory] = useState(null)
+  const [historyData, setHistoryData] = useState(null)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -98,6 +101,18 @@ export default function UsersPage() {
       setError(err.response?.data?.error || `Error al ${action} usuario`)
     }
   }
+  
+  const handleViewHistory = async (user) => {
+    setSelectedUserHistory(user)
+    setShowHistoryModal(true)
+    try {
+      const data = await usersService.getUserHistory(user.id)
+      setHistoryData(data)
+    } catch (err) {
+      console.error('Error loading history:', err)
+      setModalError('Error al cargar el historial')
+    }
+  }
 
   const handleIconClick = (iconId) => {
     if (formData.icon_codes.includes(iconId)) {
@@ -136,6 +151,9 @@ export default function UsersPage() {
   const closeModals = () => {
     setShowCreateModal(false)
     setEditingUser(null)
+    setShowHistoryModal(false)
+    setSelectedUserHistory(null)
+    setHistoryData(null)
     setModalError('')
     resetForm()
   }
@@ -215,6 +233,13 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => handleViewHistory(user)}
+                      className="text-green-600 hover:text-green-900 mr-3"
+                      title="Ver historial de créditos"
+                    >
+                      <History size={18} />
+                    </button>
                     <button
                       onClick={() => openEditModal(user)}
                       className="text-blue-600 hover:text-blue-900 mr-3"
@@ -440,6 +465,188 @@ export default function UsersPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal Historial de Créditos */}
+      {showHistoryModal && selectedUserHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Historial de Créditos</h2>
+                  <p className="text-gray-600">{selectedUserHistory.figure} {selectedUserHistory.nick}</p>
+                  <p className="text-sm text-gray-500">Créditos actuales: <span className="font-bold text-blue-600">{selectedUserHistory.score}</span></p>
+                </div>
+                <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                  {modalError}
+                </div>
+              )}
+
+              {!historyData ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Tareas Completadas */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-800">✅ Tareas Completadas</h3>
+                    {historyData.task_completions && historyData.task_completions.length > 0 ? (
+                      <div className="space-y-2">
+                        {historyData.task_completions.map((completion) => (
+                          <div key={completion.id} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">{completion.task?.title}</p>
+                                <p className="text-sm text-gray-600 mt-1">{new Date(completion.completed_at).toLocaleString('es-ES')}</p>
+                                {completion.completion_notes && (
+                                  <p className="text-xs text-gray-500 mt-1">Nota: {completion.completion_notes}</p>
+                                )}
+                                {completion.validation_notes && (
+                                  <p className="text-xs text-gray-500 mt-1">Validación: {completion.validation_notes}</p>
+                                )}
+                              </div>
+                              <div className="text-right ml-4">
+                                <span className="text-lg font-bold text-green-600">
+                                  +{completion.credits_awarded || 0}
+                                </span>
+                                <p className="text-xs text-gray-500">
+                                  Score: {completion.validation_score || 'N/A'}/3
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No hay tareas completadas</p>
+                    )}
+                  </div>
+
+                  {/* Premios Canjeados */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-800">🎁 Premios Canjeados</h3>
+                    {historyData.reward_redemptions && historyData.reward_redemptions.length > 0 ? (
+                      <div className="space-y-2">
+                        {historyData.reward_redemptions.map((redemption) => (
+                          <div key={redemption.id} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">{redemption.reward?.title}</p>
+                                <p className="text-sm text-gray-600 mt-1">{new Date(redemption.redeemed_at).toLocaleString('es-ES')}</p>
+                                {redemption.notes && (
+                                  <p className="text-xs text-gray-500 mt-1">Nota: {redemption.notes}</p>
+                                )}
+                                <span className={`inline-block mt-1 text-xs px-2 py-1 rounded ${
+                                  redemption.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                  redemption.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {redemption.status === 'approved' ? 'Aprobado' :
+                                   redemption.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                                </span>
+                              </div>
+                              <div className="text-right ml-4">
+                                <span className="text-lg font-bold text-red-600">
+                                  -{redemption.credits_cost || 0}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No hay premios canjeados</p>
+                    )}
+                  </div>
+
+                  {/* Bonos y Penalizaciones */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-800">⭐ Bonos y Penalizaciones</h3>
+                    {historyData.bonuses && historyData.bonuses.length > 0 ? (
+                      <div className="space-y-2">
+                        {historyData.bonuses.map((bonus) => (
+                          <div key={bonus.id} className={`border rounded-lg p-3 ${
+                            bonus.credits > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
+                          }`}>
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">
+                                  {bonus.credits > 0 ? '🎉 Bonus' : '⚠️ Penalización'}
+                                </p>
+                                <p className="text-sm text-gray-600 mt-1">{new Date(bonus.created_at).toLocaleString('es-ES')}</p>
+                                {bonus.description && (
+                                  <p className="text-sm text-gray-700 mt-1">{bonus.description}</p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-1">Por: {bonus.assigned_by}</p>
+                              </div>
+                              <div className="text-right ml-4">
+                                <span className={`text-lg font-bold ${
+                                  bonus.credits > 0 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {bonus.credits > 0 ? '+' : ''}{bonus.credits}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No hay bonos o penalizaciones</p>
+                    )}
+                  </div>
+
+                  {/* Resumen */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold mb-2 text-blue-900">📊 Resumen</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-600">Total ganado (tareas):</p>
+                        <p className="text-xl font-bold text-green-600">
+                          +{historyData.task_completions?.reduce((sum, c) => sum + (c.credits_awarded || 0), 0) || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Total gastado (premios):</p>
+                        <p className="text-xl font-bold text-red-600">
+                          -{historyData.reward_redemptions?.filter(r => r.status === 'approved').reduce((sum, r) => sum + (r.credits_cost || 0), 0) || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Bonos/Penalizaciones:</p>
+                        <p className={`text-xl font-bold ${
+                          (historyData.bonuses?.reduce((sum, b) => sum + b.credits, 0) || 0) >= 0 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {historyData.bonuses?.reduce((sum, b) => sum + b.credits, 0) >= 0 ? '+' : ''}
+                          {historyData.bonuses?.reduce((sum, b) => sum + b.credits, 0) || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Créditos actuales:</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {selectedUserHistory.score}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6">
+                <button onClick={closeModals} className="btn-secondary w-full">
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
