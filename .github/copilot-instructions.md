@@ -32,18 +32,23 @@ frontend/
 
 ### Task Types & Scoring Logic
 1. **Obligatory Tasks** (`task_type='obligatory'`): 
-   - Do NOT award credits when completed
-   - DEDUCT `base_value` credits if NOT completed (penalty system)
    - Created only by admins
+   - Award credits to ADMIN based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
+   - SUBTRACT credits from USER (penalty for obligatory tasks)
+   - Cancelling applies penalty to user, no one gains credits
 
 2. **Special Tasks** (`task_type='special'`):
    - Created by admins
-   - Award credits based on admin validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
+   - Award credits to ADMIN based on validation: `validation_score` (1/2/3) = 10%/60%/100% of `base_value`
+   - User is NOT penalized
 
 3. **Proposed Tasks** (`task_type='proposed'`):
    - Submitted by users via `TaskProposal` model
    - Require admin review (approve/reject/modify)
    - Upon approval, converted to regular `Task` with `task_type='proposed'`
+   - Award credits to ADMIN when validated
+
+**Key Rule**: Credits are awarded to the ADMIN who validates. Obligatory tasks deduct credits from the user. Cancelled obligatory tasks also penalize the user.
 
 ### Task Assignment Flow
 ```
@@ -284,4 +289,4 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 ---
 
-**Key Principle**: This is a **credit-based gamification system** where tasks either award or deduct credits based on completion and validation. Always update `User.score` atomically with `TaskCompletion` validation.
+**Key Principle**: This is a **credit-based gamification system** where tasks award credits to the ADMINISTRATOR who validates them. Obligatory tasks deduct credits from the user. Cancelled obligatory tasks penalize the user without awarding credits to anyone. Always update both `User.score` values atomically with `TaskCompletion` validation.

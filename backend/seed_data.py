@@ -45,7 +45,7 @@ def seed_data():
             created_by_id=admin.id
         )
         db.session.add(task1)
-        print("  ✅ Tarea obligatoria: Ordenar tu cuarto (50 créditos de penalización)")
+        print("  ✅ Tarea obligatoria: Ordenar tu cuarto (hasta 50 créditos al admin, resta al usuario)")
         
         # Tarea especial
         task2 = Task(
@@ -68,7 +68,7 @@ def seed_data():
             created_by_id=admin.id
         )
         db.session.add(task3)
-        print("  ✅ Tarea obligatoria: Hacer deberes (30 créditos de penalización)")
+        print("  ✅ Tarea obligatoria: Hacer deberes (hasta 30 créditos al admin, resta al usuario)")
         
         task4 = Task(
             title='Leer 30 minutos',
@@ -156,8 +156,8 @@ def seed_data():
         print("\n" + "="*50)
         print("TAREAS CREADAS:")
         print("="*50)
-        print("📋 2 tareas obligatorias (penalizan si no se hacen)")
-        print("📋 2 tareas especiales (dan créditos)")
+        print("📋 2 tareas obligatorias (créditos al admin, restan al usuario)")
+        print("📋 2 tareas especiales (créditos al admin)")
         print("\n" + "="*50)
         print("PREMIOS CREADOS:")
         print("="*50)

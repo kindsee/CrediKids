@@ -29,7 +29,15 @@ class TaskCompletion(db.Model):
     validated_by = db.relationship('User', foreign_keys=[validated_by_id])
     
     def calculate_credits(self, base_value):
-        """Calcula créditos según la puntuación de validación"""
+        """
+        Calcula créditos según la puntuación de validación
+        - Score 1: 10% del base_value
+        - Score 2: 60% del base_value
+        - Score 3: 100% del base_value
+        
+        Los créditos se SUMAN al administrador que valida.
+        Si es tarea obligatoria, se RESTAN al usuario.
+        """
         if self.validation_score == 1:
             return int(base_value * 0.10)
         elif self.validation_score == 2:

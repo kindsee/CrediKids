@@ -3,9 +3,9 @@ from datetime import datetime
 from enum import Enum
 
 class TaskType(str, Enum):
-    OBLIGATORY = 'obligatory'  # Misiones Base - no suman, restan si no se hacen
-    SPECIAL = 'special'  # Misiones Especiales - creadas por admin
-    PROPOSED = 'proposed'  # Misiones Propuestas - creadas por usuario
+    OBLIGATORY = 'obligatory'  # Misiones Base - al validar: suman al admin, restan al usuario
+    SPECIAL = 'special'  # Misiones Especiales - al validar: suman al admin
+    PROPOSED = 'proposed'  # Misiones Propuestas - al validar: suman al admin
 
 class TaskFrequency(str, Enum):
     DAILY = 'daily'

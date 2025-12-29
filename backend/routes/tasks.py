@@ -397,11 +397,11 @@ def cancel_task(assignment_id):
     assignment.is_cancelled = True
     assignment.cancelled_at = datetime.utcnow()
     
-    # Si es obligatoria, aplicar penalización
+    # Si es obligatoria, restar al usuario (nadie suma)
     user = User.query.get(user_id)
     penalty_applied = 0
     
-    if assignment.task.task_type == 'obligatory':
+    if assignment.task.task_type == TaskType.OBLIGATORY:
         penalty = assignment.task.base_value
         user.subtract_credits(penalty)
         penalty_applied = penalty
@@ -411,7 +411,8 @@ def cancel_task(assignment_id):
     return jsonify({
         'message': 'Task cancelled successfully',
         'assignment': assignment.to_dict(),
-        'penalty_applied': penalty_applied
+        'penalty_applied': penalty_applied,
+        'user_score': user.score
     }), 200
 
 @tasks_bp.route('/completions/<int:completion_id>/validate', methods=['POST'])
@@ -450,14 +451,8 @@ def validate_task(completion_id):
     completion.validated_at = datetime.utcnow()
     completion.validation_notes = data.get('validation_notes', '')
     
-    # Calcular créditos según tipo de tarea DESPUÉS de asignar el score
-    credits = 0
-    if task.task_type == TaskType.OBLIGATORY:
-        # Tareas obligatorias no suman créditos al completarse
-        credits = 0
-    else:
-        # Tareas especiales y propuestas sí suman créditos
-        credits = completion.calculate_credits(task.base_value)
+    # Calcular créditos según validación
+    credits = completion.calculate_credits(task.base_value)
     
     completion.credits_awarded = credits
     
@@ -465,15 +460,23 @@ def validate_task(completion_id):
     assignment = TaskAssignment.query.get(completion.assignment_id)
     assignment.is_validated = True
     
-    # Actualizar score del usuario
+    # Obtener usuario y administrador
     user = User.query.get(completion.user_id)
-    user.add_credits(credits)
+    admin = User.query.get(admin_id)
+    
+    # Los créditos se SUMAN al ADMINISTRADOR que valida
+    admin.add_credits(credits)
+    
+    # Si es tarea OBLIGATORIA: se RESTA al usuario
+    if task.task_type == TaskType.OBLIGATORY:
+        user.subtract_credits(credits)
     
     db.session.commit()
     
     return jsonify({
         'completion': completion.to_dict(),
-        'user_score': user.score
+        'user_score': user.score,
+        'admin_score': admin.score
     }), 200
 
 @tasks_bp.route('/assignments/<int:assignment_id>/reset', methods=['POST'])
@@ -490,10 +493,18 @@ def reset_task_assignment(assignment_id):
     if assignment.is_completed:
         completion = TaskCompletion.query.filter_by(assignment_id=assignment_id).first()
         if completion:
-            # Si fue validada, revertir créditos
+            # Si fue validada, revertir créditos (del admin y usuario)
             if completion.credits_awarded and completion.credits_awarded > 0:
-                user = User.query.get(assignment.user_id)
-                user.subtract_credits(completion.credits_awarded)
+                # Restar al admin que validó
+                admin = User.query.get(completion.validated_by_id)
+                if admin:
+                    admin.subtract_credits(completion.credits_awarded)
+                
+                # Si era obligatoria, devolver los créditos al usuario
+                task = Task.query.get(assignment.task_id)
+                if task.task_type == TaskType.OBLIGATORY:
+                    user = User.query.get(assignment.user_id)
+                    user.add_credits(completion.credits_awarded)
             
             db.session.delete(completion)
         
@@ -503,7 +514,7 @@ def reset_task_assignment(assignment_id):
     # Si está cancelada, revertir penalización si era obligatoria
     if assignment.is_cancelled:
         task = Task.query.get(assignment.task_id)
-        if task.task_type == 'obligatory':
+        if task.task_type == TaskType.OBLIGATORY:
             user = User.query.get(assignment.user_id)
             user.add_credits(task.base_value)  # Devolver los créditos restados
         
@@ -600,18 +611,26 @@ def admin_cancel_task(assignment_id):
     if assignment.is_cancelled:
         return jsonify({'error': 'Task already cancelled'}), 400
     
-    # Marcar como cancelada (sin penalización)
+    # Marcar como cancelada
     assignment.is_cancelled = True
     assignment.cancelled_at = datetime.utcnow()
     
-    # Registrar en la base de datos que fue cancelada por admin
-    # (podrías agregar un campo cancelled_by_admin si lo necesitas)
+    # Si es obligatoria, restar al usuario (nadie suma)
+    user = User.query.get(assignment.user_id)
+    penalty_applied = 0
+    
+    if assignment.task.task_type == TaskType.OBLIGATORY:
+        penalty = assignment.task.base_value
+        user.subtract_credits(penalty)
+        penalty_applied = penalty
     
     db.session.commit()
     
     return jsonify({
         'message': 'Task cancelled successfully by admin',
-        'assignment': assignment.to_dict()
+        'assignment': assignment.to_dict(),
+        'penalty_applied': penalty_applied,
+        'user_score': user.score
     }), 200
 
 @tasks_bp.route('/proposals', methods=['GET'])

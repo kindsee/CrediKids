@@ -258,7 +258,7 @@ def get_today_stats():
                 total_credits += completion.credits_awarded or 0
         elif assignment.is_cancelled:
             cancelled_count += 1
-            # Si es obligatoria y fue cancelada, restar penalización (base_value)
+            # Si es obligatoria y fue cancelada, restar penalización
             if assignment.task.task_type == 'obligatory':
                 total_credits -= assignment.task.base_value or 0
         else:
